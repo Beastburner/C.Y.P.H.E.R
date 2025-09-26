@@ -57,6 +57,7 @@ The home page provides an intuitive dashboard showing:
 - React Native CLI
 - Android Studio (for Android development)
 - Xcode (for iOS development, macOS only)
+- Yarn or npm package manager
 
 ### Installation
 
@@ -64,9 +65,180 @@ The home page provides an intuitive dashboard showing:
 git clone https://github.com/Beastburner/C.Y.P.H.E.R.git
 cd Demo-EthereumWallet-main
 npm install
+```
 
+### Running the App
 
+#### For Android
+```bash
+npm run android
+```
 
+#### For iOS (macOS only)
+```bash
+npm run ios
+```
+
+#### Start Metro Bundler
+```bash
+npm start
+```
+
+### Build Commands
+
+#### Clean Start
+```bash
+npm run start-clean
+```
+
+#### Build Production Bundle for Android
+```bash
+npm run build-production-bundle
+```
+
+#### Build Clean Release for Android
+```bash
+npm run build-clean-release
+```
+
+## Project Structure
+
+```
+Demo-EthereumWallet-main/
+├── android/                    # Android native code
+├── src/
+│   ├── components/             # Reusable UI components
+│   │   ├── Button.tsx
+│   │   └── Card.tsx
+│   ├── config/                 # Configuration files
+│   │   ├── apiConfig.ts
+│   │   ├── contracts.json
+│   │   ├── CypherNetworks.ts
+│   │   └── networks.ts
+│   ├── context/                # React contexts for state management
+│   │   ├── EnhancedWalletContext.tsx
+│   │   └── WalletContext.tsx
+│   ├── navigation/             # Navigation configuration
+│   │   └── CypherNavigation.tsx
+│   ├── performance/            # Performance optimization utilities
+│   │   ├── LightningPerformanceManager.ts
+│   │   └── PerformanceOptimizer.ts
+│   ├── screens/                # App screens
+│   │   ├── Auth/
+│   │   │   └── AuthenticationScreen.tsx
+│   │   ├── BackupRecovery/
+│   │   │   └── BackupRecoveryScreen.tsx
+│   │   ├── Browser/
+│   │   │   └── BrowserScreen.tsx
+│   │   ├── DApp/
+│   │   │   └── DAppBrowserScreen.tsx
+│   │   ├── Home/
+│   │   │   └── HomeNew.tsx
+│   │   ├── NFT/
+│   │   │   ├── NFTCollectionScreen.tsx
+│   │   │   ├── NFTDashboard.tsx
+│   │   │   ├── NFTMarketplaceScreen.tsx
+│   │   │   ├── NFTPortfolioScreen.tsx
+│   │   │   └── NFTScreen.tsx
+│   │   ├── Onboarding/
+│   │   │   ├── CreateWallet.tsx
+│   │   │   └── OnboardingScreen.tsx
+│   │   ├── Settings/
+│   │   │   ├── BackupRestoreScreen.tsx
+│   │   │   ├── ChangePasswordScreen.tsx
+│   │   │   ├── NetworkManagementScreen.tsx
+│   │   │   ├── NetworkSelector.tsx
+│   │   │   ├── SecuritySettings.tsx
+│   │   │   ├── SettingsScreen.tsx
+│   │   │   └── WalletManagementScreen.tsx
+│   │   ├── Swap/
+│   │   │   ├── SwapScreen.tsx
+│   │   │   └── SwapScreenCypher.tsx
+│   │   ├── TokenDetail/
+│   │   │   └── TokenDetailScreen.tsx
+│   │   ├── TokenManagement/
+│   │   │   └── TokenManagementScreen.tsx
+│   │   ├── Transactions/
+│   │   │   ├── TransactionManagementScreen.tsx
+│   │   │   └── TransactionsScreen.tsx
+│   │   └── WalletManager/
+│   │       └── WalletManagerScreen.tsx
+│   ├── theme/                  # Theme and styling
+│   │   ├── animations.ts
+│   │   ├── colors.ts
+│   │   ├── darkTheme.ts
+│   │   ├── index.ts
+│   │   ├── layout.ts
+│   │   ├── ThemeProvider.tsx
+│   │   └── typography.ts
+│   ├── types/                  # TypeScript type definitions
+│   │   ├── cypherTypes.ts
+│   │   ├── ecliptaTypes.ts
+│   │   ├── env.d.ts
+│   │   └── index.ts
+│   └── utils/                  # Utility functions
+│       ├── autoLockManager.ts
+│       ├── bigNumberUtils.ts
+│       ├── biometricAuth.ts
+│       ├── bip39Helpers.ts
+│       ├── circuitOptimizer.ts
+│       ├── cryptoUtils.ts
+│       ├── DataLoader.ts
+│       ├── enhancedWalletManager.ts
+│       ├── ethersHelpers.ts
+│       ├── hardwareWalletManager.ts
+│       ├── keyboardManager.ts
+│       ├── logger.ts
+│       ├── polyfills.ts
+│       ├── secureStorage.ts
+│       ├── securityManager.ts
+│       ├── simpleCrypto.ts
+│       ├── storageHelpers.ts
+│       ├── transactionValidator.ts
+│       ├── validators.ts
+│       ├── WalletImportTester.ts
+│       └── zkProofGenerator.ts
+├── App.tsx                     # Main app component
+├── index.js                    # App entry point
+├── package.json                # Dependencies and scripts
+├── tsconfig.json               # TypeScript configuration
+├── babel.config.js             # Babel configuration
+├── metro.config.js             # Metro bundler configuration
+├── .eslintrc.js                # ESLint configuration
+├── .prettierrc.js              # Prettier configuration
+└── README.md                   # This file
+```
+
+## Key Dependencies
+
+### Core Libraries
+- **React Native**: 0.73.11 - Mobile app framework
+- **React**: 18.2.0 - UI library
+- **Redux Toolkit**: State management
+- **React Navigation**: Navigation library
+
+### Ethereum/Web3
+- **ethers**: Ethereum wallet and utilities
+- **@openzeppelin/contracts**: Smart contract library
+- **bip39**: BIP39 mnemonic generation
+- **ethereumjs-util**: Ethereum utilities
+
+### Security & Storage
+- **react-native-keychain**: Secure key storage
+- **expo-local-authentication**: Biometric authentication
+- **react-native-biometrics**: Biometric support
+
+### UI & Styling
+- **styled-components**: CSS-in-JS styling
+- **react-native-vector-icons**: Icon library
+- **react-native-linear-gradient**: Gradient backgrounds
+
+### Additional Features
+- **qrcode**: QR code generation
+- **axios**: HTTP client
+- **big.js**: Big number arithmetic
+- **circom**: Zero-knowledge proof circuits
+- **hardhat**: Ethereum development environment
 
 ## Contributing
 
