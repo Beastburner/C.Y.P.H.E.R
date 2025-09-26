@@ -103,7 +103,7 @@ const loadComponents = () => {
       components.YieldFarmingScreen = require('./src/screens/DeFi/YieldFarmingScreen').default;
       components.StakingScreen = require('./src/screens/DeFi/StakingScreen').default;
     } catch (error) {
-      console.warn('DeFi components failed to load:', error);
+      console.warn('DeFi components failed to load:', error)
     }
 
     // NFT components
