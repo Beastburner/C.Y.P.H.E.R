@@ -1,6 +1,6 @@
 {
   "name": "cypher-wallet",
-  "version": "1.1.0",
+  "version": "1.0.0",
   "main": "index.js",
   "scripts": {
     "android": "react-native run-android",
