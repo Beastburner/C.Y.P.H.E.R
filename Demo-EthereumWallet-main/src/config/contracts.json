@@ -1,0 +1,28 @@
+{
+  "network": {
+    "name": "Development",
+    "chainId": 31337
+  },
+  "timestamp": "2025-01-14T00:00:00.000Z",
+  "deployer": "0x0000000000000000000000000000000000000000",
+  "contracts": {
+    "CypherToken": "",
+    "CypherDEX": "",
+    "CypherStaking": "",
+    "CypherMultiSigWallet": "",
+    "CypherNFT": "",
+    "CypherNFTMarketplace": ""
+  },
+  "config": {
+    "tokenName": "Cypher Token",
+    "tokenSymbol": "ECLP",
+    "tokenDecimals": 18,
+    "tokenMaxSupply": 1000000,
+    "tokenInitialSupply": 100000,
+    "dexTradingFee": 30,
+    "marketplaceFee": 250,
+    "nftName": "Cypher NFT Collection",
+    "nftSymbol": "ENFT",
+    "nftBaseURI": "https://api.cypher.io/nft/metadata/"
+  }
+}
