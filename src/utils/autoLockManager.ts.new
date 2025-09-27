@@ -1,0 +1,288 @@
+import { AppState, AppStateStatus } from 'react-native';
+import SecurityManager from './securityManager';
+
+export interface AutoLockConfig {
+  enabled: boolean;
+  timeoutMinutes: number;
+  lockOnAppBackground: boolean;
+  lockOnAppInactive: boolean;
+  requireBiometric: boolean;
+  maxFailedAttempts: number;
+  lockOnThreat: boolean;
+}
+
+export interface LockState {
+  isLocked: boolean;
+  lockedAt: Date | null;
+  reason: 'timeout' | 'background' | 'manual' | 'security' | 'failed_attempts';
+  failedAttempts: number;
+  lastActivity: Date;
+}
+
+export type LockStateListener = (state: LockState) => void;
+export type UnlockRequiredListener = () => void;
+
+class AutoLockManager {
+  private static instance: AutoLockManager;
+  private securityManager: SecurityManager;
+  private lockTimer: NodeJS.Timeout | null = null;
+  private appState: AppStateStatus = 'active';
+  private lastActiveTime: number = Date.now();
+  private lockState: LockState;
+  private lockStateListeners: Set<LockStateListener> = new Set();
+  private unlockRequiredListeners: Set<UnlockRequiredListener> = new Set();
+  private config: AutoLockConfig = {
+    enabled: true,
+    timeoutMinutes: 15,
+    lockOnAppBackground: false,
+    lockOnAppInactive: false,
+    requireBiometric: true,
+    maxFailedAttempts: 3,
+    lockOnThreat: true,
+  };
+  private onLockCallback?: () => void;
+
+  constructor() {
+    this.securityManager = SecurityManager.getInstance();
+    this.lockState = {
+      isLocked: false,
+      lockedAt: null,
+      reason: 'manual',
+      failedAttempts: 0,
+      lastActivity: new Date(),
+    };
+    this.setupAppStateListener();
+  }
+
+  public static getInstance(): AutoLockManager {
+    if (!AutoLockManager.instance) {
+      AutoLockManager.instance = new AutoLockManager();
+    }
+    return AutoLockManager.instance;
+  }
+
+  private setupAppStateListener(): void {
+    AppState.addEventListener('change', this.handleAppStateChange.bind(this));
+  }
+
+  private handleAppStateChange(nextAppState: AppStateStatus): void {
+    if (this.appState.match(/inactive|background/) && nextAppState === 'active') {
+      if (this.isLockDue()) {
+        this.lock('timeout');
+      }
+    }
+    
+    if (nextAppState === 'background' && this.config.lockOnAppBackground) {
+      this.lock('background');
+    }
+    
+    this.appState = nextAppState;
+    if (nextAppState === 'active') {
+      this.resetUserActivity();
+    }
+  }
+
+  /**
+   * Check if wallet is locked
+   */
+  isLocked(): boolean {
+    return this.lockState.isLocked;
+  }
+
+  /**
+   * Lock the wallet manually
+   */
+  async lock(reason: LockState['reason'] = 'manual'): Promise<void> {
+    await this.lockWallet(reason);
+  }
+
+  /**
+   * Add lock state listener
+   */
+  addLockStateListener(listener: LockStateListener): void {
+    this.lockStateListeners.add(listener);
+  }
+
+  /**
+   * Remove lock state listener
+   */
+  removeLockStateListener(listener: LockStateListener): void {
+    this.lockStateListeners.delete(listener);
+  }
+
+  /**
+   * Add unlock required listener
+   */
+  addUnlockRequiredListener(listener: UnlockRequiredListener): void {
+    this.unlockRequiredListeners.add(listener);
+  }
+
+  /**
+   * Remove unlock required listener
+   */
+  removeUnlockRequiredListener(listener: UnlockRequiredListener): void {
+    this.unlockRequiredListeners.delete(listener);
+  }
+
+  /**
+   * Update configuration
+   */
+  async updateConfig(config: Partial<AutoLockConfig>): Promise<void> {
+    try {
+      if (config) {
+        this.config = { ...this.config, ...config };
+        if (config.timeoutMinutes) {
+          this.scheduleAutoLock();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update auto-lock config:', error);
+    }
+  }
+
+  /**
+   * Get current configuration
+   */
+  getConfig(): AutoLockConfig {
+    return { ...this.config };
+  }
+
+  /**
+   * Set lock callback
+   */
+  setOnLockCallback(callback: () => void): void {
+    this.onLockCallback = callback;
+  }
+
+  /**
+   * Reset user activity
+   */
+  resetUserActivity(): void {
+    this.lastActiveTime = Date.now();
+    if (this.config.enabled && !this.lockState.isLocked) {
+      this.scheduleAutoLock();
+    }
+  }
+
+  /**
+   * Check if lock is due
+   */
+  async isLockDue(): Promise<boolean> {
+    if (!this.config.enabled || this.lockState.isLocked) {
+      return false;
+    }
+
+    const timeoutMs = this.config.timeoutMinutes * 60 * 1000;
+    return (Date.now() - this.lastActiveTime) >= timeoutMs;
+  }
+
+  /**
+   * Get remaining time before auto-lock
+   */
+  getRemainingTime(): number {
+    if (!this.config.enabled || this.lockState.isLocked) {
+      return 0;
+    }
+
+    const timeoutMs = this.config.timeoutMinutes * 60 * 1000;
+    const remaining = timeoutMs - (Date.now() - this.lastActiveTime);
+    return Math.max(0, remaining);
+  }
+
+  /**
+   * Start the auto-lock manager
+   */
+  async start(): Promise<void> {
+    try {
+      if (this.config.enabled) {
+        this.scheduleAutoLock();
+      }
+    } catch (error) {
+      console.error('Failed to start auto-lock manager:', error);
+    }
+  }
+
+  /**
+   * Stop the auto-lock manager
+   */
+  stop(): void {
+    if (this.lockTimer) {
+      clearTimeout(this.lockTimer);
+      this.lockTimer = null;
+    }
+  }
+
+  /**
+   * Force lock the wallet
+   */
+  async forceLock(): Promise<void> {
+    await this.lock('manual');
+  }
+
+  /**
+   * Get status
+   */
+  getStatus() {
+    return {
+      isLocked: this.lockState.isLocked,
+      timeout: this.config.timeoutMinutes,
+      remaining: this.getRemainingTime(),
+      appState: this.appState,
+      lastActive: this.lastActiveTime,
+    };
+  }
+
+  private async lockWallet(reason: LockState['reason']): Promise<void> {
+    this.lockState = {
+      ...this.lockState,
+      isLocked: true,
+      lockedAt: new Date(),
+      reason,
+      lastActivity: new Date(),
+    };
+
+    this.notifyLockStateListeners();
+    this.notifyUnlockRequiredListeners();
+
+    if (this.onLockCallback) {
+      this.onLockCallback();
+    }
+
+    this.stop();
+  }
+
+  private scheduleAutoLock(): void {
+    this.stop();
+
+    if (!this.config.enabled || this.lockState.isLocked) {
+      return;
+    }
+
+    const timeoutMs = this.config.timeoutMinutes * 60 * 1000;
+    this.lockTimer = setTimeout(async () => {
+      await this.lockWallet('timeout');
+    }, timeoutMs);
+  }
+
+  private notifyLockStateListeners(): void {
+    this.lockStateListeners.forEach(listener => {
+      try {
+        listener(this.lockState);
+      } catch (error) {
+        console.error('Error in lock state listener:', error);
+      }
+    });
+  }
+
+  private notifyUnlockRequiredListeners(): void {
+    this.unlockRequiredListeners.forEach(listener => {
+      try {
+        listener();
+      } catch (error) {
+        console.error('Error in unlock required listener:', error);
+      }
+    });
+  }
+}
+
+export default AutoLockManager;
