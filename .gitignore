@@ -1,0 +1,141 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# React Native
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Android
+android/app/build/
+android/build/
+android/.gradle/
+android/captures/
+android/gradlew.bat
+android/app/google-services.json
+
+# iOS
+ios/build/
+ios/Pods/
+ios/**/*.pbxuser
+ios/**/*.xcuserdatad
+ios/**/*.xcworkspace/xcuserdata
+
+# Flipper
+ios/Pods/Flipper
+ios/Pods/Flipper-Folly
+ios/Pods/RCT-Folly
+
+# macOS
+.DS_Store
+*.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.cache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Build artifacts
+build/
+dist/
+*.tgz
+*.tar.gz
+
+# Smart contract artifacts
+artifacts/
+cache/
+typechain/
+deployments/*/solcInputs
+
+# ZK Circuit artifacts
+build/circuits/
+build/keys/
+build/proofs/
+*.ptau
+*.r1cs
+*.wasm
+*.wtns
+*.zkey
+
+# Testing
+coverage/
+.nyc_output/
+junit.xml
+
+# Debugging
+chrome_crashpad_handler
+*.dSYM.zip
+*.dSYM
+
+# Bundle artifacts
+*.jsbundle
+*.hbc
+
+# CocoaPods
+ios/Pods/
+ios/Podfile.lock
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+# Metro
+.metro-health-check*
+
+# Yarn
+yarn-error.log
+yarn.lock
+
+# npm
+npm-debug.log
+package-lock.json
+
+# Local development
+local.properties
+keystore.properties
+signing.properties
+
+# Validation reports
+validation-report.json
+test-transaction-*.js
+validate-*.js
+
+# Backup files
+*.bak
+*.old
+*.backup
+*-backup.*
+*-old.*
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+
+# Network logs
+flipper-network.log
+
+# Sentry
+.sentryclirc
