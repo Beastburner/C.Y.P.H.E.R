@@ -2131,13 +2131,25 @@ Wallet ID: ${walletId}
                 tx.status = receipt.status === 1 ? 'confirmed' : 'failed';
                 tx.blockNumber = receipt.blockNumber;
                 tx.gasUsed = receipt.gasUsed.toString();
+                
+                // Refresh account balance after transaction confirmation
+                try {
+                  console.log('🔄 Refreshing balance for account:', account.address);
+                  const balanceResult = await this.getEthereumBalance(account.address, chainId);
+                  account.balance = balanceResult.balance;
+                  account.lastBalanceUpdate = Date.now();
+                  console.log('✅ Balance updated:', account.balance, 'ETH');
+                } catch (balanceError) {
+                  console.warn('Failed to refresh balance:', balanceError);
+                }
+                
                 await this.saveWallet(this.currentWallet);
                 break;
               }
             }
           }
           
-          console.log('✅ Transaction confirmed:', txHash);
+          console.log('✅ Transaction confirmed and balance updated:', txHash);
         }
       } catch (error) {
         console.warn('Failed to check transaction status:', txHash, error);

@@ -96,6 +96,8 @@ const loadComponents = () => {
     components.CreateWalletScreen = require('./src/screens/Onboarding/CreateWallet').default;
     components.BottomNavigation = require('./src/components/BottomNavigation').default;
     components.SimpleStartupAnimation = require('./src/components/SimpleStartupAnimation').default;
+    components.TransactionDebugger = require('./src/components/debugging/AdvancedTransactionDebugger').default;
+    components.NetworkTroubleshooter = require('./src/components/debugging/SimpleNetworkTroubleshooter').default;
     
     // DeFi components
     try {
@@ -136,7 +138,7 @@ const loadComponents = () => {
 // Load components immediately
 loadComponents();
 
-type Screen = 'home' | 'send' | 'receive' | 'swap' | 'transactions' | 'settings' | 'Send' | 'Receive' | 'Swap' | 'Transactions' | 'Settings' | 'Security' | 'SecuritySettings' | 'ChangePassword' | 'auth' | 'Authentication' | 'onboarding' | 'CreateWallet' | 'ImportWallet' | 'Home' | 'MultiWalletHome' | 'WalletManagement' | 'EnhancedAuth' | 'BackupRecovery' | 'browser' | 'Browser' | 'NFT' | 'NFTScreen' | 'DApp' | 'DeFi' | 'defi' | 'DeFiDashboard' | 'YieldFarmingScreen' | 'YieldFarming' | 'StakingScreen' | 'Staking' | 'Status' | 'Debug' | 'TokenManagement' | 'BiometricTest' | 'BiometricDebug' | 'QRScanner' | 'Privacy' | 'TokenDetail';
+type Screen = 'home' | 'send' | 'receive' | 'swap' | 'transactions' | 'settings' | 'Send' | 'Receive' | 'Swap' | 'Transactions' | 'Settings' | 'Security' | 'SecuritySettings' | 'ChangePassword' | 'auth' | 'Authentication' | 'onboarding' | 'CreateWallet' | 'ImportWallet' | 'Home' | 'MultiWalletHome' | 'WalletManagement' | 'EnhancedAuth' | 'BackupRecovery' | 'browser' | 'Browser' | 'NFT' | 'NFTScreen' | 'DApp' | 'DeFi' | 'defi' | 'DeFiDashboard' | 'YieldFarmingScreen' | 'YieldFarming' | 'StakingScreen' | 'Staking' | 'Status' | 'Debug' | 'TokenManagement' | 'BiometricTest' | 'BiometricDebug' | 'QRScanner' | 'Privacy' | 'TokenDetail' | 'TransactionDebugger' | 'NetworkTroubleshooter';
 
 function AppContent() {
   const { state, authenticateWithBiometrics, unlockWallet } = useWallet();
@@ -352,7 +354,7 @@ function AppContent() {
             ChangePasswordScreen, AuthenticationScreen, QRScannerScreen, PrivacyScreen,
             TokenDetailScreen, TokenManagementScreen, BiometricTestScreen, BiometricDebugScreen,
             WalletStatusScreen, BrowserScreen, DeFiDashboard, YieldFarmingScreen, StakingScreen, 
-            NFTScreen, BottomNavigation } = components;
+            NFTScreen, TransactionDebugger, NetworkTroubleshooter, BottomNavigation } = components;
 
     // Add debug info to each screen
     console.log('🖥️ Rendering screen:', currentScreen, 'with wallet state:', {
@@ -488,6 +490,14 @@ function AppContent() {
       case 'BiometricDebug':
         return BiometricDebugScreen ? <BiometricDebugScreen onNavigate={handleNavigation} /> :
           <View style={styles.fallback}><Text style={styles.fallbackText}>Loading Biometric Debug...</Text></View>;
+      
+      case 'TransactionDebugger':
+        return TransactionDebugger ? <TransactionDebugger onNavigate={handleNavigation} /> :
+          <View style={styles.fallback}><Text style={styles.fallbackText}>Loading Transaction Debugger...</Text></View>;
+      
+      case 'NetworkTroubleshooter':
+        return NetworkTroubleshooter ? <NetworkTroubleshooter onNavigate={handleNavigation} /> :
+          <View style={styles.fallback}><Text style={styles.fallbackText}>Loading Network Troubleshooter...</Text></View>;
       
       case 'Status':
         return WalletStatusScreen ? <WalletStatusScreen onNavigate={handleNavigation} /> :

@@ -69,7 +69,7 @@ export class PrivacyEnabledWallet {
   }
 
   /**
-   * Send transaction with privacy protection
+   * Send transaction with enhanced error handling and logging
    */
   public async sendTransaction(params: {
     to: string;
@@ -80,11 +80,17 @@ export class PrivacyEnabledWallet {
   }): Promise<{
     success: boolean;
     transactionHash?: string;
-    privacyScore?: number;
     error?: string;
   }> {
+    const { to, value, data, usePrivacy = false, aliasId } = params;
+    
     try {
-      const { to, value, data, usePrivacy = true, aliasId } = params;
+      console.log('🚀 Starting transaction:', {
+        to,
+        value,
+        usePrivacy,
+        privacyMode: this.isPrivacyModeEnabled
+      });
 
       // Validate inputs
       if (!ethers.utils.isAddress(to)) {
@@ -102,9 +108,23 @@ export class PrivacyEnabledWallet {
       }
 
       const currentAccount = accounts[0];
+      console.log('📄 Using account:', currentAccount.address);
+
+      // Check balance before sending
+      const balanceResult = await this.walletService.getEthereumBalance(currentAccount.address);
+      const currentBalance = parseFloat(balanceResult.balance);
+      const sendAmount = parseFloat(value);
+      
+      console.log('💰 Current balance:', currentBalance, 'ETH');
+      console.log('💸 Sending amount:', sendAmount, 'ETH');
+
+      if (currentBalance < sendAmount) {
+        throw new Error(`Insufficient balance. You have ${currentBalance} ETH but trying to send ${sendAmount} ETH`);
+      }
 
       // Check if privacy should be used
       if (usePrivacy && this.isPrivacyModeEnabled) {
+        console.log('🔒 Using privacy-enhanced transaction');
         // Use privacy-enhanced transaction
         if (aliasId || this.currentAlias) {
           // Dual-layer architecture with alias
@@ -123,6 +143,7 @@ export class PrivacyEnabledWallet {
           });
         }
       } else {
+        console.log('👁️ Using standard transaction');
         // Standard transaction
         return await this.sendStandardTransaction({
           from: currentAccount.address,
@@ -151,16 +172,22 @@ export class PrivacyEnabledWallet {
     error?: string;
   }> {
     try {
-      // Use wallet service to send standard transaction
-      const result = await this.walletService.signTransaction({
+      console.log('🚀 Sending standard transaction:', {
         from: params.from,
         to: params.to,
-        value: params.value,
-        data: params.data,
+        amount: params.value,
       });
 
-      // In a real implementation, this would broadcast the signed transaction
-      console.log('📤 Standard transaction sent:', result.transactionHash);
+      // Use the actual transferEthereum method from WalletService
+      const result = await this.walletService.transferEthereum({
+        fromAddress: params.from,
+        toAddress: params.to,
+        amount: params.value,
+        // Optional: add gas settings
+        gasLimit: '21000', // Standard ETH transfer
+      });
+
+      console.log('✅ Transaction sent successfully:', result.transactionHash);
       
       return {
         success: true,
@@ -168,7 +195,21 @@ export class PrivacyEnabledWallet {
       };
     } catch (error) {
       console.error('❌ Standard transaction failed:', error);
-      return { success: false, error: (error as Error).message };
+      
+      // Provide more specific error messages
+      let errorMessage = (error as Error).message;
+      if (errorMessage.includes('insufficient funds')) {
+        errorMessage = 'Insufficient balance to send this transaction';
+      } else if (errorMessage.includes('invalid address')) {
+        errorMessage = 'Invalid recipient address';
+      } else if (errorMessage.includes('network')) {
+        errorMessage = 'Network connection error. Please check your internet connection.';
+      }
+      
+      return { 
+        success: false, 
+        error: errorMessage 
+      };
     }
   }
 
@@ -188,9 +229,14 @@ export class PrivacyEnabledWallet {
 
       const currentAccount = accounts[0];
       
-      // Get public balance
-      const balances = await this.walletService.getAccountBalances(currentAccount.address);
-      const publicBalance = balances.ETH || '0';
+      // Get fresh public balance from blockchain
+      console.log('🔄 Refreshing balance for account:', currentAccount.address);
+      const balanceResult = await this.walletService.getEthereumBalance(currentAccount.address);
+      const publicBalance = balanceResult.balance;
+      
+      // Update the account balance in storage
+      currentAccount.balance = publicBalance;
+      currentAccount.lastBalanceUpdate = Date.now();
 
       let privateBalance = '0';
       
@@ -209,6 +255,12 @@ export class PrivacyEnabledWallet {
         parseFloat(publicBalance) + parseFloat(privateBalance)
       ).toString();
 
+      console.log('💰 Balance refreshed:', {
+        public: publicBalance,
+        private: privateBalance,
+        total: totalBalance
+      });
+
       return {
         publicBalance,
         privateBalance: includePrivateBalance ? privateBalance : undefined,
@@ -218,6 +270,18 @@ export class PrivacyEnabledWallet {
       console.error('❌ Failed to get balance:', error);
       throw error;
     }
+  }
+
+  /**
+   * Force refresh balance from blockchain
+   */
+  public async refreshBalance(): Promise<{
+    publicBalance: string;
+    privateBalance?: string;
+    totalBalance: string;
+  }> {
+    console.log('🔄 Force refreshing balance...');
+    return await this.getBalance(true);
   }
 
   /**

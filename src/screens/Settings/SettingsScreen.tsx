@@ -195,6 +195,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) => {
     onNavigate('About');
   };
 
+  const handleDebugTools = () => {
+    onNavigate('TransactionDebugger');
+  };
+
+  const handleNetworkTroubleshooter = () => {
+    onNavigate('NetworkTroubleshooter');
+  };
+
   return (
     <Container>
       <Header>
@@ -333,6 +341,31 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) => {
             <SettingLeft>
               <SettingTitle>About</SettingTitle>
               <SettingSubtitle>App version and information</SettingSubtitle>
+            </SettingLeft>
+            <SettingRight>
+              <ChevronText>›</ChevronText>
+            </SettingRight>
+          </SettingItemLast>
+        </Section>
+
+        {/* Developer Tools */}
+        <Section>
+          <SectionTitle>Developer Tools</SectionTitle>
+          
+          <SettingItem onPress={handleNetworkTroubleshooter}>
+            <SettingLeft>
+              <SettingTitle>🌐 Network Troubleshooter</SettingTitle>
+              <SettingSubtitle>Fix "transaction not working" issues</SettingSubtitle>
+            </SettingLeft>
+            <SettingRight>
+              <ChevronText>›</ChevronText>
+            </SettingRight>
+          </SettingItem>
+          
+          <SettingItemLast onPress={handleDebugTools}>
+            <SettingLeft>
+              <SettingTitle>🔧 Advanced Transaction Debugger</SettingTitle>
+              <SettingSubtitle>Deep diagnosis of transaction issues</SettingSubtitle>
             </SettingLeft>
             <SettingRight>
               <ChevronText>›</ChevronText>

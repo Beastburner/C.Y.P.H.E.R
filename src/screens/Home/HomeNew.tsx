@@ -76,6 +76,7 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     initializeWalletCheck();
+    loadBalanceVisibility();
   }, []);
 
   useEffect(() => {
@@ -99,6 +100,32 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
       setHasWallet(false);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadBalanceVisibility = async () => {
+    try {
+      const { getValue } = await import('../../utils/storageHelpers');
+      const savedVisibility = await getValue('balance_visibility');
+      if (savedVisibility !== null) {
+        setShowBalance(savedVisibility === 'true');
+      }
+    } catch (error) {
+      console.log('Failed to load balance visibility preference:', error);
+      // Default to true if loading fails
+      setShowBalance(true);
+    }
+  };
+
+  const toggleBalanceVisibility = async () => {
+    try {
+      const newVisibility = !showBalance;
+      setShowBalance(newVisibility);
+      
+      const { setValue } = await import('../../utils/storageHelpers');
+      await setValue('balance_visibility', newVisibility.toString());
+    } catch (error) {
+      console.error('Failed to save balance visibility preference:', error);
     }
   };
 
@@ -871,9 +898,16 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
 
   const formatBalance = (balance: string): string => {
     try {
+      if (!balance || balance === undefined || balance === null) {
+        return '0.000000';
+      }
       const balanceNum = parseFloat(balance);
+      if (isNaN(balanceNum)) {
+        return '0.000000';
+      }
       return balanceNum.toFixed(6);
-    } catch {
+    } catch (error) {
+      console.warn('Error formatting balance:', error);
       return '0.000000';
     }
   };
@@ -1077,11 +1111,11 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           <View style={styles.modernBalanceContainer}>
             <Text style={styles.modernBalanceLabel}>Total Balance</Text>
             <TouchableOpacity 
-              onPress={() => setShowBalance(!showBalance)}
+              onPress={toggleBalanceVisibility}
               style={styles.balanceToggle}
             >
               <Text style={styles.modernBalanceAmount}>
-                {showBalance ? `${formatBalance(state.balance)} ${state.currentNetwork.symbol}` : '•••••••'}
+                {showBalance ? `${formatBalance(state.balance || '0')} ${state.currentNetwork?.symbol || 'ETH'}` : '•••••••'}
               </Text>
               <Text style={styles.balanceVisibilityIcon}>
                 {showBalance ? '👁️' : '👁️‍🗨️'}
@@ -1094,6 +1128,7 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
 
       <ScrollView 
         style={styles.scrollView}
+        contentContainerStyle={styles.scrollViewContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1101,6 +1136,7 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             tintColor={colors.primary}
           />
         }
+        showsVerticalScrollIndicator={false}
       >
         {/* Enhanced Quick Actions with Privacy Integration */}
         <View style={[cardStyle, styles.modernQuickActionsCard]}>
@@ -1108,7 +1144,11 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           <View style={styles.modernQuickActionsGrid}>
             <TouchableOpacity 
               style={styles.modernQuickAction}
-              onPress={() => onNavigate('Send')}
+              onPress={() => {
+                console.log('🎯 Send button pressed');
+                onNavigate('Send');
+              }}
+              activeOpacity={0.7}
             >
               <LinearGradient 
                 colors={['#3B82F6', '#1D4ED8']} 
@@ -1121,7 +1161,11 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             
             <TouchableOpacity 
               style={styles.modernQuickAction}
-              onPress={() => onNavigate('Receive')}
+              onPress={() => {
+                console.log('🎯 Receive button pressed');
+                onNavigate('Receive');
+              }}
+              activeOpacity={0.7}
             >
               <LinearGradient 
                 colors={['#10B981', '#059669']} 
@@ -1134,7 +1178,11 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             
             <TouchableOpacity 
               style={styles.modernQuickAction}
-              onPress={() => onNavigate('Swap')}
+              onPress={() => {
+                console.log('🎯 Swap button pressed');
+                onNavigate('Swap');
+              }}
+              activeOpacity={0.7}
             >
               <LinearGradient 
                 colors={['#8B5CF6', '#7C3AED']} 
@@ -1147,7 +1195,11 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             
             <TouchableOpacity 
               style={styles.modernQuickAction}
-              onPress={() => onNavigate('DeFiDashboard')}
+              onPress={() => {
+                console.log('🎯 DeFi button pressed');
+                onNavigate('DeFiDashboard');
+              }}
+              activeOpacity={0.7}
             >
               <LinearGradient 
                 colors={['#F59E0B', '#D97706']} 
@@ -1163,7 +1215,12 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           <View style={styles.privacyActionsRow}>
             <TouchableOpacity 
               style={styles.privacyQuickAction}
-              onPress={() => onNavigate('PrivacyPool')}
+              onPress={() => {
+                console.log('🎯 Privacy Pool button pressed');
+                // Fallback to Privacy screen since PrivacyPool doesn't exist yet
+                onNavigate('Privacy');
+              }}
+              activeOpacity={0.7}
             >
               <LinearGradient 
                 colors={['#667eea', '#764ba2']} 
@@ -1176,7 +1233,12 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             
             <TouchableOpacity 
               style={styles.privacyQuickAction}
-              onPress={() => onNavigate('ENSPrivacy')}
+              onPress={() => {
+                console.log('🎯 ENS Privacy button pressed');
+                // Navigate to existing Privacy screen for now
+                onNavigate('Privacy');
+              }}
+              activeOpacity={0.7}
             >
               <LinearGradient 
                 colors={['#10B981', '#059669']} 
@@ -1189,7 +1251,12 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
             
             <TouchableOpacity 
               style={styles.privacyQuickAction}
-              onPress={() => onNavigate('ShieldedTransaction')}
+              onPress={() => {
+                console.log('🎯 Shielded Transaction button pressed');
+                // Navigate to Send screen with privacy mode for now
+                onNavigate('Send');
+              }}
+              activeOpacity={0.7}
             >
               <LinearGradient 
                 colors={['#8B5CF6', '#7C3AED']} 
@@ -1307,6 +1374,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0F172A', // Navy background
+    overflow: 'hidden', // Prevent any content from overflowing
   },
   // Modern Loading styles
   modernLoadingContainer: {
@@ -1388,11 +1456,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
-    elevation: 10,
+    elevation: 15, // Increased elevation to ensure it stays above content
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
+    zIndex: 10, // Add explicit z-index
   },
   modernHeaderContent: {
     flex: 1,
@@ -1451,6 +1520,7 @@ const styles = StyleSheet.create({
   },
   modernSettingsButton: {
     padding: 8,
+    zIndex: 20, // Ensure settings button stays on top
   },
   settingsIconContainer: {
     width: 40,
@@ -1459,12 +1529,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 5, // Add elevation to ensure visibility
   },
   modernSettingsIcon: {
     fontSize: 18,
   },
   modernBalanceContainer: {
     alignItems: 'center',
+    zIndex: 15, // Ensure balance stays visible above scroll content
+    marginBottom: 10, // Add some bottom margin for better separation
   },
   modernBalanceLabel: {
     fontSize: 16,
@@ -1715,6 +1788,10 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     paddingHorizontal: 16,
+    paddingTop: 20, // Add top padding to prevent overlap
+  },
+  scrollViewContent: {
+    paddingBottom: 100, // Extra bottom padding for better scrolling experience
   },
   lockedContainer: {
     flex: 1,
@@ -2198,12 +2275,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E293B', // Surface color
     borderRadius: 20,
     padding: 20,
+    marginTop: 8, // Add top margin to ensure proper spacing
     marginBottom: 20,
     shadowColor: '#3B82F6',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.1,
     shadowRadius: 24,
-    elevation: 12,
+    elevation: 5, // Reduced elevation to avoid z-index conflicts
+    zIndex: 1, // Ensure it's above other elements but below header
   },
   modernSectionTitle: {
     fontSize: 20,
@@ -2216,11 +2295,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 16,
+    zIndex: 2, // Ensure buttons are above other elements
   },
   modernQuickAction: {
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 4,
+    paddingVertical: 8, // Add padding to increase touch area
+    minHeight: 80, // Ensure minimum touch target size
   },
   modernQuickActionIcon: {
     width: 56,
@@ -2254,6 +2336,8 @@ const styles = StyleSheet.create({
   privacyQuickAction: {
     alignItems: 'center',
     flex: 1,
+    paddingVertical: 8, // Add padding to increase touch area
+    minHeight: 70, // Ensure minimum touch target size
   },
   privacyActionIcon: {
     width: 48,
