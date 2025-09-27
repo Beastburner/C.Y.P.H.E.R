@@ -44,7 +44,7 @@ const TokenSelectorModal: React.FC<TokenSelectorModalProps> = ({ visible, onClos
     <TouchableOpacity style={styles.tokenRow} onPress={() => handleSelect(item)}>
       <Image source={{ uri: item.logoURI }} style={styles.tokenIcon} />
       <View>
-        <Text style={[styles.tokenName, { color: colors.text }]}>{item.name}</Text>
+        <Text style={[styles.tokenName, { color: colors.textPrimary }]}>{item.name}</Text>
         <Text style={[styles.tokenSymbol, { color: colors.textSecondary }]}>{item.symbol}</Text>
       </View>
     </TouchableOpacity>
@@ -54,14 +54,14 @@ const TokenSelectorModal: React.FC<TokenSelectorModalProps> = ({ visible, onClos
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Select a Token</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Select a Token</Text>
           <TouchableOpacity onPress={onClose}>
             <Text style={[styles.closeButton, { color: colors.primary }]}>Close</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.searchContainer}>
           <TextInput
-            style={[styles.searchInput, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}            placeholder="Search name or paste address"
+            style={[styles.searchInput, { backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }]}            placeholder="Search name or paste address"
             placeholderTextColor={colors.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}

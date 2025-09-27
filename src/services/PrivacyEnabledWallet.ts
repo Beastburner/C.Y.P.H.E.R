@@ -26,7 +26,7 @@ export class PrivacyEnabledWallet {
     try {
       // Check if privacy mode is enabled
       const privacyState = await privacyService.getPrivacyState();
-      this.isPrivacyModeEnabled = privacyState.isPrivacyEnabled;
+      this.isPrivacyModeEnabled = privacyState.enabled;
 
       console.log('🔐 Privacy-enabled wallet initialized');
     } catch (error) {
@@ -45,7 +45,9 @@ export class PrivacyEnabledWallet {
       
       if (result.success) {
         this.isPrivacyModeEnabled = true;
-        this.currentAlias = result.aliasId || null;
+        // Try to create an alias since enableDualLayerMode doesn't return one
+        const aliasResult = await privacyService.createAlias();
+        this.currentAlias = aliasResult.aliasId || null;
         
         console.log('✅ Privacy mode enabled with alias:', this.currentAlias);
         return { success: true, aliasId: this.currentAlias || undefined };
@@ -129,17 +131,17 @@ export class PrivacyEnabledWallet {
         if (aliasId || this.currentAlias) {
           // Dual-layer architecture with alias
           return await privacyService.sendPrivateTransactionWithAlias({
-            aliasId: aliasId || this.currentAlias!,
-            recipient: to,
+            aliasAddress: aliasId || this.currentAlias!,
+            to: to,
             amount: value,
-            useZKProof: true,
+            aliasId: aliasId || this.currentAlias!
           });
         } else {
           // Basic privacy pool
           return await privacyService.sendPrivateTransaction({
-            recipient: to,
+            to: to,
             amount: value,
-            useZKProof: true,
+            useShielded: true
           });
         }
       } else {

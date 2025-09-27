@@ -22,7 +22,7 @@ import AnalyticsDashboard from '../screens/Analytics/AnalyticsDashboard';
 import NFTScreen from '../screens/NFT/NFTScreen';
 import SendScreen from '../screens/Send/SendScreen';
 import ReceiveScreen from '../screens/Receive/ReceiveScreen';
-import SwapScreenClean from '../screens/Swap/SwapScreenClean';
+import SwapScreenCypher from '../screens/Swap/SwapScreenCypher';
 import SettingsScreen from '../screens/Settings/SettingsScreen';
 import NetworkSelector from '../screens/Settings/NetworkSelector';
 import SecuritySettings from '../screens/Settings/SecuritySettings';
@@ -64,6 +64,10 @@ const SecuritySettingsWrapper = ({ navigation, route }: any) => (
 
 const BrowserWrapper = ({ navigation, route }: any) => (
   <BrowserScreen onNavigate={(screen: string) => navigation.navigate(screen)} />
+);
+
+const SwapWrapper = ({ navigation, route }: any) => (
+  <SwapScreenCypher onNavigate={(screen: string, params?: any) => navigation.navigate(screen, params)} />
 );
 
 // Custom Tab Bar Component
@@ -359,7 +363,7 @@ export default function CypherNavigation() {
         />
         <Stack.Screen
           name="SwapScreenClean"
-          component={SwapScreenClean}
+          component={SwapWrapper}
           options={{ presentation: 'modal' }}
         />
         <Stack.Screen

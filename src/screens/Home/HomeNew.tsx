@@ -14,9 +14,20 @@ import {
   Alert,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import Button from '../../components/Button';
-import Card from '../../components/Card';
-import TokenRow from '../../components/TokenRow';
+import Icon from 'react-native-vector-icons/Feather';
+
+// Import modern components
+import ModernHeader from '../../components/ModernHeader';
+import ModernCard from '../../components/ModernCard';
+import ModernButton from '../../components/ModernButton';
+import ModernBalanceDisplay from '../../components/ModernBalanceDisplay';
+import ModernTransactionRow from '../../components/ModernTransactionRow';
+import ModernBottomNavigation from '../../components/ModernBottomNavigation';
+import RealBalanceTest from '../../components/RealBalanceTest';
+import { CypherHeaderLogo } from '../../components/CypherLogo';
+
+// Import theme and utilities
+import { ModernColors, ModernSpacing, ModernBorderRadius, ModernShadows } from '../../styles/ModernTheme';
 import { useWallet } from '../../context/WalletContext';
 import { useTheme } from '../../context/ThemeContext';
 import { Token, Transaction } from '../../types';
@@ -45,12 +56,38 @@ interface HomeScreenProps {
  * - Intuitive navigation requiring zero tutorials
  */
 const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
-  const { state, refreshPortfolio, refreshTransactions, createWallet, importWallet, checkExistingWallet } = useWallet();
+  const { state, refreshPortfolio, refreshTransactions, getBalance, getTransactions, createWallet, importWallet, checkExistingWallet } = useWallet();
   const { colors, typography, spacing, createCardStyle, createButtonStyle, gradients } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [showBalance, setShowBalance] = useState(true);
   const [hasWallet, setHasWallet] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPrivateMode, setIsPrivateMode] = useState(false);
+  const [notifications, setNotifications] = useState(3);
+  const [activeTab, setActiveTab] = useState('wallet');
+  
+  // Balance state with modern structure - UPDATED TO USE REAL DATA
+  const [balance, setBalance] = useState({
+    public: 0,
+    private: 0,
+    currency: 'ETH',
+    usdValue: {
+      public: 0,
+      private: 0,
+    }
+  });
+  
+  // Transaction data - UPDATED TO USE REAL DATA
+  const [transactions, setTransactions] = useState<any[]>([]);
+
+  // Bottom navigation tabs
+  const bottomTabs = [
+    { id: 'wallet', label: 'Wallet', icon: 'home', badge: 0 },
+    { id: 'activity', label: 'Activity', icon: 'activity', badge: 0 },
+    { id: 'ens', label: 'ENS', icon: 'globe', badge: 0 },
+    { id: 'privacy', label: 'Privacy', icon: 'shield', badge: 0 },
+    { id: 'scanner', label: 'Scanner', icon: 'search', badge: 0 }
+  ];
   
   // ECLIPTA Wallet Creation/Import Modal States (prompt.txt specifications)
   const [showWalletModal, setShowWalletModal] = useState(false);
@@ -135,6 +172,43 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
         refreshPortfolio(),
         refreshTransactions(),
       ]);
+      
+      // Update local balance state with real blockchain data
+      const realBalance = await getBalance();
+      const realTransactions = await getTransactions();
+      
+      console.log('🔍 Real balance from blockchain:', realBalance);
+      console.log('🔍 WalletContext state.balance:', state.balance);
+      console.log('🔍 Current network:', state.currentNetwork?.name);
+      
+      // Update balance with real data from blockchain
+      setBalance(prev => ({
+        ...prev,
+        public: parseFloat(realBalance || state.balance || '0'),
+        currency: state.currentNetwork?.symbol || 'ETH',
+        usdValue: {
+          public: state.portfolio?.totalBalance || 0,
+          private: prev.usdValue.private // Keep private balance for now
+        }
+      }));
+      
+      // Update transactions with real data
+      setTransactions(realTransactions.map((tx: any) => ({
+        id: tx.hash || tx.id,
+        type: tx.type || 'send',
+        amount: parseFloat(tx.value || tx.amount || '0'),
+        currency: state.currentNetwork?.symbol || 'ETH',
+        from: tx.from || 'Unknown',
+        to: tx.to || 'Unknown',
+        timestamp: new Date(tx.timestamp || Date.now()).toLocaleString(),
+        status: tx.status || 'confirmed',
+        mode: 'public-to-public',
+        hash: tx.hash || tx.id,
+        usdValue: 0 // Will be calculated if needed
+      })));
+      
+      console.log('✅ Balance updated to:', parseFloat(realBalance || state.balance || '0'), state.currentNetwork?.symbol);
+      
     } catch (error) {
       console.error('Failed to load data:', error);
     }
@@ -1058,14 +1132,15 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
     );
   }  if (!state.isUnlocked) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
-        <View style={styles.lockedContainer}>
-          <Text style={styles.lockedText}>Please unlock your wallet</Text>
-          <Button 
+      <SafeAreaView style={modernStyles.container}>
+        <StatusBar barStyle="light-content" backgroundColor={ModernColors.primaryGradient[0]} />
+        <View style={modernStyles.lockedContainer}>
+          <Text style={modernStyles.lockedText}>Please unlock your wallet</Text>
+          <ModernButton 
             title="Unlock Wallet" 
             onPress={() => onNavigate('auth')}
-            style={primaryButtonStyle}
+            variant="primary"
+            gradient={true}
           />
         </View>
       </SafeAreaView>
@@ -1073,300 +1148,300 @@ const HomeNew: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+    <View style={modernStyles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* Modern CYPHER Header with Enhanced Gradient */}
-      <LinearGradient 
-        colors={['#667eea', '#764ba2', '#f093fb']} 
-        style={styles.modernHeader}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.modernHeaderContent}>
-          <View style={styles.modernWalletInfo}>
-            <View style={styles.logoAndTitle}>
-              <View style={styles.miniLogo}>
-                <Text style={styles.miniLogoText}>C</Text>
-              </View>
-              <View>
-                <Text style={styles.modernWalletTitle}>CYPHER Wallet</Text>
-                <View style={styles.networkBadge}>
-                  <View style={styles.networkDot} />
-                  <Text style={styles.modernNetworkBadgeText}>{state.currentNetwork.name}</Text>
-                </View>
-              </View>
-            </View>
-            <TouchableOpacity 
-              style={styles.modernSettingsButton}
-              onPress={() => onNavigate('Settings')}
-            >
-              <View style={styles.settingsIconContainer}>
-                <Text style={styles.modernSettingsIcon}>⚙️</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-          
-          {/* Enhanced Balance Display */}
-          <View style={styles.modernBalanceContainer}>
-            <Text style={styles.modernBalanceLabel}>Total Balance</Text>
-            <TouchableOpacity 
-              onPress={toggleBalanceVisibility}
-              style={styles.balanceToggle}
-            >
-              <Text style={styles.modernBalanceAmount}>
-                {showBalance ? `${formatBalance(state.balance || '0')} ${state.currentNetwork?.symbol || 'ETH'}` : '•••••••'}
-              </Text>
-              <Text style={styles.balanceVisibilityIcon}>
-                {showBalance ? '👁️' : '👁️‍🗨️'}
-              </Text>
-            </TouchableOpacity>
-            <Text style={styles.modernBalanceUSD}>≈ $0.00 USD</Text>
-          </View>
-        </View>
-      </LinearGradient>
+      {/* Modern Header */}
+      <ModernHeader
+        title="CYPHER Wallet"
+        isPrivateMode={isPrivateMode}
+        isConnected={true}
+        notifications={notifications}
+        onPrivacyToggle={() => setIsPrivateMode(!isPrivateMode)}
+        onSettingsPress={() => onNavigate('Settings')}
+        onNotificationPress={() => setNotifications(0)}
+        showConnectionStatus={true}
+        showPrivacyToggle={true}
+      />
 
       <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollViewContent}
+        style={modernStyles.scrollView}
+        contentContainerStyle={modernStyles.scrollViewContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={colors.primary}
+            tintColor={ModernColors.info}
           />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Enhanced Quick Actions with Privacy Integration */}
-        <View style={[cardStyle, styles.modernQuickActionsCard]}>
-          <Text style={styles.modernSectionTitle}>Quick Actions</Text>
-          <View style={styles.modernQuickActionsGrid}>
-            <TouchableOpacity 
-              style={styles.modernQuickAction}
-              onPress={() => {
-                console.log('🎯 Send button pressed');
-                onNavigate('Send');
-              }}
-              activeOpacity={0.7}
-            >
-              <LinearGradient 
-                colors={['#3B82F6', '#1D4ED8']} 
-                style={styles.modernQuickActionIcon}
-              >
-                <Text style={styles.modernQuickActionEmoji}>↗️</Text>
-              </LinearGradient>
-              <Text style={styles.modernQuickActionText}>Send</Text>
-            </TouchableOpacity>
+        {/* Render content based on active tab */}
+        {activeTab === 'wallet' && (
+          <>
+            {/* Real Balance Test Component */}
+            <RealBalanceTest />
             
-            <TouchableOpacity 
-              style={styles.modernQuickAction}
-              onPress={() => {
-                console.log('🎯 Receive button pressed');
-                onNavigate('Receive');
+            {/* Modern Balance Display */}
+            <ModernBalanceDisplay
+              balance={{
+                public: parseFloat(state.balance || '0'),
+                private: balance.private,
+                currency: state.currentNetwork?.symbol || 'ETH',
+                usdValue: {
+                  public: state.portfolio?.totalBalance || 0,
+                  private: balance.usdValue.private
+                }
               }}
-              activeOpacity={0.7}
-            >
-              <LinearGradient 
-                colors={['#10B981', '#059669']} 
-                style={styles.modernQuickActionIcon}
-              >
-                <Text style={styles.modernQuickActionEmoji}>↙️</Text>
-              </LinearGradient>
-              <Text style={styles.modernQuickActionText}>Receive</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.modernQuickAction}
-              onPress={() => {
-                console.log('🎯 Swap button pressed');
-                onNavigate('Swap');
-              }}
-              activeOpacity={0.7}
-            >
-              <LinearGradient 
-                colors={['#8B5CF6', '#7C3AED']} 
-                style={styles.modernQuickActionIcon}
-              >
-                <Text style={styles.modernQuickActionEmoji}>🔄</Text>
-              </LinearGradient>
-              <Text style={styles.modernQuickActionText}>Swap</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.modernQuickAction}
-              onPress={() => {
-                console.log('🎯 DeFi button pressed');
-                onNavigate('DeFiDashboard');
-              }}
-              activeOpacity={0.7}
-            >
-              <LinearGradient 
-                colors={['#F59E0B', '#D97706']} 
-                style={styles.modernQuickActionIcon}
-              >
-                <Text style={styles.modernQuickActionEmoji}>🌟</Text>
-              </LinearGradient>
-              <Text style={styles.modernQuickActionText}>DeFi</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {/* New Privacy Quick Actions Row */}
-          <View style={styles.privacyActionsRow}>
-            <TouchableOpacity 
-              style={styles.privacyQuickAction}
-              onPress={() => {
-                console.log('🎯 Privacy Pool button pressed');
-                // Fallback to Privacy screen since PrivacyPool doesn't exist yet
-                onNavigate('Privacy');
-              }}
-              activeOpacity={0.7}
-            >
-              <LinearGradient 
-                colors={['#667eea', '#764ba2']} 
-                style={styles.privacyActionIcon}
-              >
-                <Text style={styles.privacyActionEmoji}>🛡️</Text>
-              </LinearGradient>
-              <Text style={styles.privacyActionText}>Privacy Pools</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.privacyQuickAction}
-              onPress={() => {
-                console.log('🎯 ENS Privacy button pressed');
-                // Navigate to existing Privacy screen for now
-                onNavigate('Privacy');
-              }}
-              activeOpacity={0.7}
-            >
-              <LinearGradient 
-                colors={['#10B981', '#059669']} 
-                style={styles.privacyActionIcon}
-              >
-                <Text style={styles.privacyActionEmoji}>🔐</Text>
-              </LinearGradient>
-              <Text style={styles.privacyActionText}>ENS Privacy</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.privacyQuickAction}
-              onPress={() => {
-                console.log('🎯 Shielded Transaction button pressed');
-                // Navigate to Send screen with privacy mode for now
-                onNavigate('Send');
-              }}
-              activeOpacity={0.7}
-            >
-              <LinearGradient 
-                colors={['#8B5CF6', '#7C3AED']} 
-                style={styles.privacyActionIcon}
-              >
-                <Text style={styles.privacyActionEmoji}>👻</Text>
-              </LinearGradient>
-              <Text style={styles.privacyActionText}>Shielded Tx</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+              isPrivateMode={isPrivateMode}
+              onToggleVisibility={toggleBalanceVisibility}
+              loading={refreshing}
+              showUSD={true}
+            />
 
-        {/* Tokens Portfolio */}
-        <View style={[cardStyle, styles.tokensCard]}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Portfolio</Text>
-            <TouchableOpacity onPress={() => onNavigate('TokenManagement')}>
-              <Text style={styles.viewAllButton}>Manage</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {state.tokens && state.tokens.length > 0 ? (
-            state.tokens.slice(0, 5).map((token: Token, index: number) => (
-              <TokenRow
-                key={token.address || index}
-                token={token}
-                onPress={() => onNavigate('TokenDetail', { token })}
+            {/* Action Buttons */}
+            <ModernCard padding="medium" margin="medium">
+              <Text style={modernStyles.sectionTitle}>Quick Actions</Text>
+              <View style={modernStyles.actionButtonsGrid}>
+                <ModernButton
+                  title="Send"
+                  onPress={() => onNavigate('Send')}
+                  variant="primary"
+                  gradient={true}
+                  leftIcon={<Icon name="arrow-up-right" size={20} color="#ffffff" />}
+                />
+                <ModernButton
+                  title="Receive"
+                  onPress={() => onNavigate('Receive')}
+                  variant="success"
+                  leftIcon={<Icon name="arrow-down-left" size={20} color="#ffffff" />}
+                />
+              </View>
+              <View style={[modernStyles.actionButtonsGrid, { marginTop: ModernSpacing.md }]}>
+                <ModernButton
+                  title="Swap"
+                  onPress={() => onNavigate('Swap')}
+                  variant="secondary"
+                  leftIcon={<Icon name="refresh-cw" size={20} color={ModernColors.info} />}
+                />
+                <ModernButton
+                  title="DeFi"
+                  onPress={() => onNavigate('DeFiDashboard')}
+                  variant="warning"
+                  leftIcon={<Icon name="star" size={20} color="#ffffff" />}
+                />
+              </View>
+            </ModernCard>
+
+            {/* Recent Transactions */}
+            <ModernCard title="Recent Activity" padding="none" margin="medium">
+              <View style={{ paddingHorizontal: ModernSpacing.xl }}>
+                {transactions.slice(0, 3).map((tx, index) => (
+                  <ModernTransactionRow
+                    key={tx.id}
+                    transaction={tx}
+                    onPress={(transaction) => onNavigate('TransactionDetail', { transaction })}
+                    showMode={true}
+                    compact={false}
+                  />
+                ))}
+              </View>
+              <View style={modernStyles.viewAllContainer}>
+                <ModernButton
+                  title="View All Transactions"
+                  onPress={() => setActiveTab('activity')}
+                  variant="ghost"
+                  size="small"
+                />
+              </View>
+            </ModernCard>
+
+            {/* Portfolio Overview */}
+            <ModernCard title="Portfolio" padding="medium" margin="medium">
+              {state.tokens && state.tokens.length > 0 ? (
+                <>
+                  {state.tokens.slice(0, 3).map((token: Token, index: number) => (
+                    <TouchableOpacity
+                      key={token.address || index}
+                      style={modernStyles.tokenRow}
+                      onPress={() => onNavigate('TokenDetail', { token })}
+                    >
+                      <View style={modernStyles.tokenIcon}>
+                        <Text style={modernStyles.tokenIconText}>
+                          {token.symbol?.charAt(0) || 'T'}
+                        </Text>
+                      </View>
+                      <View style={modernStyles.tokenInfo}>
+                        <Text style={modernStyles.tokenName}>{token.name || 'Unknown Token'}</Text>
+                        <Text style={modernStyles.tokenSymbol}>{token.symbol || 'N/A'}</Text>
+                      </View>
+                      <View style={modernStyles.tokenBalance}>
+                        <Text style={modernStyles.tokenAmount}>
+                          {token.balance || '0.00'}
+                        </Text>
+                        <Text style={modernStyles.tokenValue}>$0.00</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                  <View style={modernStyles.viewAllContainer}>
+                    <ModernButton
+                      title="Manage Tokens"
+                      onPress={() => onNavigate('TokenManagement')}
+                      variant="ghost"
+                      size="small"
+                    />
+                  </View>
+                </>
+              ) : (
+                <View style={modernStyles.emptyState}>
+                  <Icon name="pie-chart" size={48} color={ModernColors.textTertiary} />
+                  <Text style={modernStyles.emptyStateText}>No tokens found</Text>
+                  <Text style={modernStyles.emptyStateSubtext}>Add tokens to see your portfolio</Text>
+                </View>
+              )}
+            </ModernCard>
+          </>
+        )}
+
+        {activeTab === 'activity' && (
+          <ModernCard title="Transaction History" padding="none" margin="medium">
+            <ScrollView style={{ maxHeight: 400 }}>
+              {transactions.map((tx) => (
+                <ModernTransactionRow
+                  key={tx.id}
+                  transaction={tx}
+                  onPress={(transaction) => onNavigate('TransactionDetail', { transaction })}
+                  showMode={true}
+                  compact={false}
+                />
+              ))}
+            </ScrollView>
+          </ModernCard>
+        )}
+
+        {activeTab === 'privacy' && (
+          <ModernCard title="Privacy Dashboard" variant="privacy" padding="medium" margin="medium">
+            <View style={modernStyles.privacyControls}>
+              <View style={modernStyles.privacyModeToggle}>
+                <Text style={modernStyles.privacyLabel}>Privacy Mode</Text>
+                <TouchableOpacity
+                  onPress={() => setIsPrivateMode(!isPrivateMode)}
+                  style={[
+                    modernStyles.toggleButton,
+                    isPrivateMode ? modernStyles.toggleActive : modernStyles.toggleInactive
+                  ]}
+                >
+                  <Icon 
+                    name={isPrivateMode ? "shield" : "eye"} 
+                    size={16} 
+                    color="#ffffff" 
+                  />
+                  <Text style={modernStyles.toggleText}>
+                    {isPrivateMode ? 'Private' : 'Public'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={modernStyles.privacyStats}>
+                <View style={modernStyles.statItem}>
+                  <Text style={modernStyles.statValue}>{transactions.length}</Text>
+                  <Text style={modernStyles.statLabel}>Private Transactions</Text>
+                </View>
+                <View style={modernStyles.statItem}>
+                  <Text style={modernStyles.statValue}>{balance.private.toFixed(2)} {state.currentNetwork?.symbol || 'ETH'}</Text>
+                  <Text style={modernStyles.statLabel}>Shielded Balance</Text>
+                </View>
+              </View>
+              
+              <ModernButton
+                title="Open Full Privacy Dashboard"
+                onPress={() => onNavigate('Privacy')}
+                variant="primary"
+                gradient={true}
+                leftIcon={<Icon name="shield" size={20} color="#ffffff" />}
+                fullWidth={true}
               />
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No tokens found</Text>
-              <Text style={styles.emptyStateSubtext}>Add tokens to see your portfolio</Text>
             </View>
-          )}
-        </View>
+          </ModernCard>
+        )}
 
-        {/* Recent Transactions */}
-        <View style={[cardStyle, styles.transactionsCard]}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Activity</Text>
-            <TouchableOpacity onPress={() => onNavigate('Transactions')}>
-              <Text style={styles.viewAllButton}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {state.transactions && state.transactions.length > 0 ? (
-            state.transactions.slice(0, 3).map((tx: Transaction, index: number) => (
-              <TouchableOpacity 
-                key={tx.hash || index} 
-                style={styles.transactionItem}
-                onPress={() => onNavigate('TransactionDetail', { transaction: tx })}
-              >
-                <View style={styles.transactionIcon}>
-                  <Text style={styles.transactionEmoji}>
-                    {tx.type === 'send' ? '↗️' : tx.type === 'receive' ? '↙️' : '🔄'}
-                  </Text>
+        {activeTab === 'ens' && (
+          <ModernCard title="ENS Management" padding="medium" margin="medium">
+            <View style={modernStyles.ensInfo}>
+              <View style={modernStyles.ensProfile}>
+                <View style={modernStyles.ensAvatar}>
+                  <Text style={modernStyles.ensAvatarText}>M</Text>
                 </View>
-                <View style={styles.transactionInfo}>
-                  <Text style={styles.transactionType}>
-                    {tx.type === 'send' ? 'Sent' : tx.type === 'receive' ? 'Received' : 'Swapped'}
-                  </Text>
-                  <Text style={styles.transactionAddress}>
-                    {tx.type === 'send' ? `To ${formatAddress(tx.to || '')}` : 
-                     tx.type === 'receive' ? `From ${formatAddress(tx.from || '')}` : 
-                     'Token Swap'}
-                  </Text>
+                <View>
+                  <Text style={modernStyles.ensName}>my-alias.eth</Text>
+                  <Text style={modernStyles.ensAddress}>0x742d...8f2a</Text>
                 </View>
-                <View style={styles.transactionAmount}>
-                  <Text style={styles.transactionValue}>
-                    {tx.type === 'send' ? '-' : '+'}{tx.value} ETH
-                  </Text>
-                  <Text style={styles.transactionStatus}>
-                    {tx.status === 'confirmed' ? '✅' : tx.status === 'pending' ? '⏳' : '❌'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No transactions yet</Text>
-              <Text style={styles.emptyStateSubtext}>Your transaction history will appear here</Text>
+              </View>
+              
+              <ModernButton
+                title="Manage ENS Profile"
+                onPress={() => onNavigate('Privacy')}
+                variant="secondary"
+                leftIcon={<Icon name="edit-3" size={20} color={ModernColors.info} />}
+                fullWidth={true}
+              />
             </View>
-          )}
-        </View>
+          </ModernCard>
+        )}
 
-        {/* CYPHER Features */}
-        <View style={[cardStyle, styles.featuresCard]}>
-          <Text style={styles.sectionTitle}>CYPHER Features</Text>
-          <View style={styles.featuresList}>
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>🛡️</Text>
-              <Text style={styles.featureText}>Military-Grade Security</Text>
+        {activeTab === 'scanner' && (
+          <ModernCard title="Blockchain Scanner" padding="medium" margin="medium">
+            <View style={modernStyles.scannerInfo}>
+              <Icon name="search" size={64} color={ModernColors.textTertiary} />
+              <Text style={modernStyles.scannerTitle}>Chain Scanner</Text>
+              <Text style={modernStyles.scannerDescription}>
+                Scanning for encrypted memos and private transactions...
+              </Text>
+              
+              <View style={modernStyles.scanResults}>
+                <View style={modernStyles.scanResult}>
+                  <Text style={modernStyles.scanResultLabel}>Last Scan</Text>
+                  <Text style={modernStyles.scanResultValue}>Block 18,234,567 • 2 min ago</Text>
+                </View>
+                <View style={modernStyles.scanResult}>
+                  <Text style={modernStyles.scanResultLabel}>Notes Detected</Text>
+                  <Text style={modernStyles.scanResultValue}>3 encrypted memos found</Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>⚡</Text>
-              <Text style={styles.featureText}>Lightning Performance</Text>
+          </ModernCard>
+        )}
+
+        {/* Privacy Mode Features */}
+        {isPrivateMode && (
+          <ModernCard variant="privacy" padding="medium" margin="medium">
+            <Text style={modernStyles.sectionTitle}>🛡️ Privacy Features Active</Text>
+            <View style={modernStyles.privacyFeatures}>
+              <View style={modernStyles.privacyFeature}>
+                <Icon name="shield" size={20} color={ModernColors.privacy.enhanced} />
+                <Text style={modernStyles.privacyFeatureText}>Enhanced Privacy Mode</Text>
+              </View>
+              <View style={modernStyles.privacyFeature}>
+                <Icon name="eye-off" size={20} color={ModernColors.privacy.enhanced} />
+                <Text style={modernStyles.privacyFeatureText}>Shielded Transactions</Text>
+              </View>
+              <View style={modernStyles.privacyFeature}>
+                <Icon name="key" size={20} color={ModernColors.privacy.enhanced} />
+                <Text style={modernStyles.privacyFeatureText}>Stealth Addresses</Text>
+              </View>
             </View>
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>🌐</Text>
-              <Text style={styles.featureText}>Perfect Web3 Connectivity</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>💎</Text>
-              <Text style={styles.featureText}>Advanced DeFi Integration</Text>
-            </View>
-          </View>
-        </View>
+          </ModernCard>
+        )}
       </ScrollView>
-    </SafeAreaView>
+
+      {/* Modern Bottom Navigation */}
+      <ModernBottomNavigation
+        tabs={bottomTabs}
+        activeTab={activeTab}
+        onTabPress={setActiveTab}
+        isPrivateMode={isPrivateMode}
+      />
+    </View>
   );
 };
 
@@ -2361,6 +2436,289 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     textAlign: 'center',
     lineHeight: 12,
+  },
+});
+
+// Modern Styles
+const modernStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: ModernColors.background,
+  },
+  
+  lockedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: ModernSpacing.xxxl,
+  },
+  
+  lockedText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: ModernColors.textSecondary,
+    marginBottom: ModernSpacing.xxxl,
+    textAlign: 'center',
+  },
+  
+  scrollView: {
+    flex: 1,
+    paddingTop: ModernSpacing.md,
+  },
+  
+  scrollViewContent: {
+    paddingBottom: 120, // Space for bottom navigation
+  },
+  
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: ModernColors.textPrimary,
+    marginBottom: ModernSpacing.lg,
+  },
+  
+  actionButtonsGrid: {
+    flexDirection: 'row',
+    gap: ModernSpacing.md,
+  },
+  
+  viewAllContainer: {
+    padding: ModernSpacing.lg,
+    alignItems: 'center',
+  },
+  
+  tokenRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: ModernSpacing.md,
+    paddingHorizontal: ModernSpacing.xl,
+    borderBottomWidth: 1,
+    borderBottomColor: ModernColors.divider,
+  },
+  
+  tokenIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: ModernBorderRadius.full,
+    backgroundColor: ModernColors.info,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: ModernSpacing.md,
+  },
+  
+  tokenIconText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: ModernColors.textInverse,
+  },
+  
+  tokenInfo: {
+    flex: 1,
+  },
+  
+  tokenName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: ModernColors.textPrimary,
+    marginBottom: 2,
+  },
+  
+  tokenSymbol: {
+    fontSize: 14,
+    color: ModernColors.textSecondary,
+  },
+  
+  tokenBalance: {
+    alignItems: 'flex-end',
+  },
+  
+  tokenAmount: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: ModernColors.textPrimary,
+    marginBottom: 2,
+  },
+  
+  tokenValue: {
+    fontSize: 14,
+    color: ModernColors.textSecondary,
+  },
+  
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: ModernSpacing.xxxl,
+  },
+  
+  emptyStateText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: ModernColors.textSecondary,
+    marginTop: ModernSpacing.lg,
+    marginBottom: ModernSpacing.xs,
+  },
+  
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: ModernColors.textTertiary,
+    textAlign: 'center',
+  },
+  
+  privacyControls: {
+    gap: ModernSpacing.xl,
+  },
+  
+  privacyModeToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  
+  privacyLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: ModernColors.textPrimary,
+  },
+  
+  toggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: ModernSpacing.md,
+    paddingVertical: ModernSpacing.sm,
+    borderRadius: ModernBorderRadius.full,
+    gap: ModernSpacing.sm,
+  },
+  
+  toggleActive: {
+    backgroundColor: ModernColors.privacy.enhanced,
+  },
+  
+  toggleInactive: {
+    backgroundColor: ModernColors.textTertiary,
+  },
+  
+  toggleText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: ModernColors.textInverse,
+  },
+  
+  privacyStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: ModernSpacing.lg,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    borderRadius: ModernBorderRadius.md,
+  },
+  
+  statItem: {
+    alignItems: 'center',
+  },
+  
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: ModernColors.privacy.enhanced,
+    marginBottom: ModernSpacing.xs,
+  },
+  
+  statLabel: {
+    fontSize: 12,
+    color: ModernColors.textSecondary,
+  },
+  
+  ensInfo: {
+    gap: ModernSpacing.xl,
+  },
+  
+  ensProfile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: ModernSpacing.md,
+  },
+  
+  ensAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: ModernBorderRadius.full,
+    backgroundColor: ModernColors.info,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  ensAvatarText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: ModernColors.textInverse,
+  },
+  
+  ensName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: ModernColors.textPrimary,
+    marginBottom: 2,
+  },
+  
+  ensAddress: {
+    fontSize: 14,
+    color: ModernColors.textSecondary,
+    fontFamily: 'monospace',
+  },
+  
+  scannerInfo: {
+    alignItems: 'center',
+    gap: ModernSpacing.lg,
+  },
+  
+  scannerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: ModernColors.textPrimary,
+  },
+  
+  scannerDescription: {
+    fontSize: 14,
+    color: ModernColors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  
+  scanResults: {
+    alignSelf: 'stretch',
+    gap: ModernSpacing.md,
+  },
+  
+  scanResult: {
+    backgroundColor: ModernColors.surfaceSecondary,
+    padding: ModernSpacing.md,
+    borderRadius: ModernBorderRadius.md,
+  },
+  
+  scanResultLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: ModernColors.textPrimary,
+    marginBottom: ModernSpacing.xs,
+  },
+  
+  scanResultValue: {
+    fontSize: 12,
+    color: ModernColors.textSecondary,
+  },
+  
+  privacyFeatures: {
+    gap: ModernSpacing.md,
+  },
+  
+  privacyFeature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: ModernSpacing.md,
+  },
+  
+  privacyFeatureText: {
+    fontSize: 16,
+    color: ModernColors.textPrimary,
+    fontWeight: '500',
   },
 });
 

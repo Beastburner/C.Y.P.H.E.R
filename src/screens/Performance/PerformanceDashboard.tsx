@@ -143,7 +143,6 @@ const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ onNavigate 
 
     return (
       <Svg width={size} height={size}>
-        <G rotation="-90" origin={`${size/2}, ${size/2}`}>
           <Circle
             cx={size/2}
             cy={size/2}
@@ -161,8 +160,8 @@ const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ onNavigate 
             fill="transparent"
             strokeDasharray={`${progress} ${remaining}`}
             strokeLinecap="round"
+            transform={`rotate(-90 ${size/2} ${size/2})`}
           />
-        </G>
       </Svg>
     );
   };

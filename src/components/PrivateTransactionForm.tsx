@@ -139,17 +139,17 @@ export const PrivateTransactionForm: React.FC<PrivateTransactionFormProps> = ({
       if (useAlias && selectedAlias) {
         // Use dual-layer architecture
         transactionResult = await privacyService.sendPrivateTransactionWithAlias({
-          aliasId: selectedAlias,
-          recipient,
+          aliasAddress: selectedAlias,
+          to: recipient,
           amount,
-          useZKProof: true,
+          aliasId: selectedAlias
         });
       } else {
         // Use basic privacy pool
         transactionResult = await privacyService.sendPrivateTransaction({
-          recipient,
+          to: recipient,
           amount,
-          useZKProof: true,
+          useShielded: true
         });
       }
 

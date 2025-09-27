@@ -300,9 +300,19 @@ export class PrivacyService {
     success: boolean;
     mode: 'public' | 'private';
     balanceVisible: boolean;
+    privacyScore?: number;
   }> {
     console.log('🔄 Toggling privacy mode');
-    return await dualLayerPrivacyService.togglePrivacyMode();
+    const result = await dualLayerPrivacyService.togglePrivacyMode();
+    
+    // Add privacy score to the result
+    const aliases = await this.getUserAliases();
+    const privacyScore = aliases.length > 0 ? 75 : 0;
+    
+    return {
+      ...result,
+      privacyScore
+    };
   }
 
   /**
@@ -485,6 +495,8 @@ export class PrivacyService {
     mode: 'public' | 'private';
     aliases: any[];
     shieldedBalance: string;
+    isPrivacyEnabled: boolean;
+    privacyScore: number;
   }> {
     const aliases = await this.getUserAliases();
     const deposits = await this.getUserShieldedDeposits();
@@ -492,11 +504,15 @@ export class PrivacyService {
       sum + parseFloat(deposit.amount), 0
     );
 
+    const isPrivateMode = this.getPrivacyMode() === 'private';
+
     return {
-      enabled: this.getPrivacyMode() === 'private',
+      enabled: isPrivateMode,
       mode: this.getPrivacyMode(),
       aliases: aliases,
-      shieldedBalance: totalBalance.toString()
+      shieldedBalance: totalBalance.toString(),
+      isPrivacyEnabled: isPrivateMode,
+      privacyScore: aliases.length > 0 ? 75 : 0 // Basic privacy score based on alias count
     };
   }
 
@@ -521,15 +537,19 @@ export class PrivacyService {
   /**
    * Create alias (legacy method name)
    */
-  public async createAlias(): Promise<{
+  public async createAlias(name?: string): Promise<{
     success: boolean;
     aliasAddress?: string;
+    aliasId?: string;
     error?: string;
   }> {
     const result = await this.createAliasAccount();
+    const aliasId = name || `alias_${Date.now()}`;
+    
     return {
       success: result.success,
       aliasAddress: result.aliasAccount?.address,
+      aliasId: result.success ? aliasId : undefined,
       error: result.error
     };
   }
@@ -567,6 +587,7 @@ export class PrivacyService {
     aliasAddress: string;
     to: string;
     amount: string;
+    aliasId?: string;
   }): Promise<any> {
     return await this.sendPrivateTransaction({
       to: params.to,
@@ -581,10 +602,14 @@ export class PrivacyService {
   public async enableDualLayerMode(): Promise<{
     success: boolean;
     error?: string;
+    privacyScore?: number;
   }> {
     try {
       await this.enablePrivacyMode();
-      return { success: true };
+      const aliases = await this.getUserAliases();
+      const privacyScore = aliases.length > 0 ? 75 : 0;
+      
+      return { success: true, privacyScore };
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }

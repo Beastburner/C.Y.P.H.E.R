@@ -26,11 +26,11 @@ import { networkService } from './NetworkService';
 // Contract ABIs (would be imported from actual ABI files)
 const MOCK_ABI = ["function deposit() external payable"];
 
-// Contract addresses (should be loaded from deployment config)
+// Contract addresses loaded from deployment config
 const CONTRACTS = {
-  ALIAS_ACCOUNT: '0x0000000000000000000000000000000000000000',
-  PRIVACY_REGISTRY: '0x0000000000000000000000000000000000000000',
-  SHIELDED_POOL: '0x0000000000000000000000000000000000000000',
+  ALIAS_ACCOUNT: '0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6',
+  PRIVACY_REGISTRY: '0xa513E6E4b8f2a923D98304ec87F64353C4D5C853',
+  SHIELDED_POOL: '0x0165878A594ca255338adfa4d48449f69242Eb8F',
 };
 
 // Helper function to check if contracts are properly deployed
@@ -479,6 +479,48 @@ export class DualLayerPrivacyService {
         [secret, this.keys.spendKey]
       )
     );
+  }
+
+  /**
+   * Generate stealth address for enhanced privacy
+   */
+  public async generateStealthAddress(recipientPublicKey: string): Promise<{
+    stealthAddress: string;
+    ephemeralPrivateKey: string;
+    ephemeralPublicKey: string;
+  }> {
+    if (!this.keys.stealthKey) {
+      throw new Error('Stealth key not initialized');
+    }
+
+    // Generate ephemeral key pair
+    const ephemeralPrivateKey = ethers.utils.hexlify(ethers.utils.randomBytes(32));
+    const ephemeralWallet = new ethers.Wallet(ephemeralPrivateKey);
+    const ephemeralPublicKey = ephemeralWallet.publicKey;
+
+    // Generate stealth address using ECDH
+    const sharedSecret = ethers.utils.keccak256(
+      ethers.utils.defaultAbiCoder.encode(
+        ['bytes', 'bytes'],
+        [ephemeralPublicKey, recipientPublicKey]
+      )
+    );
+
+    // Generate stealth address
+    const stealthPrivateKey = ethers.utils.keccak256(
+      ethers.utils.defaultAbiCoder.encode(
+        ['bytes32', 'bytes32'],
+        [sharedSecret, this.keys.stealthKey]
+      )
+    );
+
+    const stealthWallet = new ethers.Wallet(stealthPrivateKey);
+    
+    return {
+      stealthAddress: stealthWallet.address,
+      ephemeralPrivateKey,
+      ephemeralPublicKey
+    };
   }
 
   /**

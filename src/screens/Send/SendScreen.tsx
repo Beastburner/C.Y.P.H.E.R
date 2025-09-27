@@ -11,10 +11,12 @@ import {
   StatusBar,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import Icon from 'react-native-vector-icons/Feather';
 import Button from '../../components/Button';
-// import OptimizedTextInput from '../../components/OptimizedTextInput'; // Removed due to theme issues
 import { useWallet } from '../../context/WalletContext';
 import { useTheme } from '../../context/ThemeContext';
+import { ModernColors, ModernSpacing, ModernBorderRadius, ModernShadows } from '../../styles/ModernTheme';
+import { CypherHeaderLogo } from '../../components/CypherLogo';
 
 interface SendScreenProps {
   onNavigate: (screen: string, params?: any) => void;
@@ -85,21 +87,37 @@ const SendScreen: React.FC<SendScreenProps> = ({ onNavigate }) => {
   const styles = createStyles(colors);
   
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle="light-content" backgroundColor={ModernColors.primaryGradient[0]} />
       
-      <LinearGradient colors={[colors.primary, colors.accent]} style={styles.header}>
-        <View style={styles.headerContent}>
+      {/* Modern Header with Gradient */}
+      <LinearGradient 
+        colors={ModernColors.primaryGradient} 
+        style={styles.headerGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.header}>
           <TouchableOpacity 
-            style={[headerButtonStyle, styles.backButton]}
+            style={styles.backButton}
             onPress={() => onNavigate('Home')}
           >
-            <Text style={[{ fontSize: typography.fontSize.lg, fontWeight: '500' as const, color: colors.textInverse }]}>←</Text>
+            <Icon name="arrow-left" size={24} color="#FFF" />
           </TouchableOpacity>
-          <Text style={[{ fontSize: typography.fontSize['2xl'], fontWeight: '700' as const, color: colors.textInverse }]}>
-            Send {state.currentNetwork.symbol}
-          </Text>
-          <View style={styles.placeholder} />
+          
+          <View style={styles.headerCenter}>
+            <CypherHeaderLogo color="light" showText={false} />
+            <Text style={[styles.headerTitle, { color: colors.textInverse }]}>
+              Send {state.currentNetwork.symbol}
+            </Text>
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => Alert.alert('Scan QR', 'QR Scanner coming soon!')}
+          >
+            <Icon name="maximize" size={24} color="#FFF" />
+          </TouchableOpacity>
         </View>
       </LinearGradient>
 
@@ -185,34 +203,53 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
+  
+  // Modern Header Styles
+  headerGradient: {
     paddingTop: 20,
-    paddingBottom: 16,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: ModernSpacing.lg,
+    paddingVertical: ModernSpacing.md,
+    minHeight: 60,
+  },
+  headerCenter: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: ModernColors.textInverse,
+    marginLeft: ModernSpacing.sm,
+  },
+  backButton: {
+    padding: ModernSpacing.xs,
+    borderRadius: ModernBorderRadius.sm,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  actionButton: {
+    padding: ModernSpacing.xs,
+    borderRadius: ModernBorderRadius.sm,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  
+  // Legacy styles (keeping for compatibility)
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   backIcon: {
     fontSize: 18,
     color: colors.textPrimary,
     fontWeight: 'bold',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-    textAlign: 'center',
   },
   placeholder: {
     width: 40,

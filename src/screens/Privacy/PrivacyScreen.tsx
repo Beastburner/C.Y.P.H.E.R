@@ -11,11 +11,17 @@ import {
   Switch,
   SafeAreaView,
   RefreshControl,
+  StatusBar,
+  Dimensions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import LinearGradient from 'react-native-linear-gradient';
 import { ethers } from 'ethers';
 import ShieldedPoolService, { ShieldedNote, DepositParams, WithdrawParams } from '../../services/shieldedPoolService';
 import { useWallet } from '../../context/WalletContext';
+import { ModernColors, ModernSpacing, ModernBorderRadius, ModernShadows } from '../../styles/ModernTheme';
+import { useTheme } from '../../context/ThemeContext';
+import { CypherHeaderLogo } from '../../components/CypherLogo';
 
 /**
  * @title PrivacyScreen
@@ -44,8 +50,10 @@ interface PrivacySettings {
 }
 
 const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavigate }) => {
-  // Wallet context
-  const { state } = useWallet();
+  // Wallet context and theme
+  const { state, getBalance, getTransactions } = useWallet();
+  const { colors, typography, spacing, createCardStyle, createButtonStyle, gradients } = useTheme();
+  const { width, height } = Dimensions.get('window');
   
   // State management
   const [activeTab, setActiveTab] = useState<'balance' | 'transactions' | 'settings'>('balance');
@@ -54,6 +62,8 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
   const [refreshing, setRefreshing] = useState(false);
   const [shieldedService, setShieldedService] = useState<ShieldedPoolService | null>(null);
   const [shieldedBalance, setShieldedBalance] = useState('0');
+  
+  // Real pool stats from blockchain
   const [poolStats, setPoolStats] = useState({
     totalDeposits: '0',
     totalWithdrawals: '0',
@@ -87,7 +97,7 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
     return shieldedNotes.filter((note: ShieldedNote) => !note.isSpent);
   }, [shieldedNotes]);
 
-  // Initialize service
+  // Initialize service with real contract data
   useEffect(() => {
     initializeService();
   }, [state.currentNetwork]);
@@ -97,15 +107,41 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
       if (!state.currentNetwork?.rpcUrl) return;
       
       const provider = new ethers.providers.JsonRpcProvider(state.currentNetwork.rpcUrl);
-      // Replace with actual deployed contract address
-      const contractAddress = '0x1234567890123456789012345678901234567890'; // TODO: Replace with real address
       
-      const service = new ShieldedPoolService(provider, contractAddress);
-      setShieldedService(service);
+      // Get real deployed contract address from environment or deployment
+      let contractAddress = process.env.SHIELDED_POOL_CONTRACT;
+      if (!contractAddress && state.currentNetwork.name.includes('Sepolia')) {
+        // For demo: use a placeholder that would be replaced with actual deployed address
+        contractAddress = '0x0000000000000000000000000000000000000000'; // Replace with actual deployed address
+      }
       
-      await loadShieldedData(service);
+      if (contractAddress && contractAddress !== '0x0000000000000000000000000000000000000000') {
+        const service = new ShieldedPoolService(provider, contractAddress);
+        setShieldedService(service);
+        
+        await loadShieldedData(service);
+      } else {
+        // For demo purposes, show empty state instead of mock data
+        setPoolStats({
+          totalDeposits: '0',
+          totalWithdrawals: '0',
+          activeCommitments: '0',
+          poolBalance: '0'
+        });
+        setShieldedBalance('0');
+        setShieldedNotes([]);
+      }
     } catch (error) {
       console.error('Failed to initialize shielded service:', error);
+      // Set empty state on error instead of mock data
+      setPoolStats({
+        totalDeposits: '0',
+        totalWithdrawals: '0',
+        activeCommitments: '0',
+        poolBalance: '0'
+      });
+      setShieldedBalance('0');
+      setShieldedNotes([]);
     }
   };
 
@@ -116,7 +152,7 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
 
       setIsLoading(true);
       
-      // Load balance and notes
+      // Load real balance and notes from blockchain
       const [balance, notes, stats] = await Promise.all([
         serviceToUse.getShieldedBalance(),
         serviceToUse.getAllNotes(),
@@ -132,6 +168,15 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
       
     } catch (error) {
       console.error('Failed to load shielded data:', error);
+      // On error, show empty state
+      setShieldedBalance('0');
+      setShieldedNotes([]);
+      setPoolStats({
+        totalDeposits: '0',
+        totalWithdrawals: '0',
+        activeCommitments: '0',
+        poolBalance: '0'
+      });
     } finally {
       setIsLoading(false);
     }
@@ -297,41 +342,51 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
     }));
   };
 
-  // Render functions
+  // Render functions with modern theming
   const renderBalanceTab = () => (
     <ScrollView 
-      style={styles.tabContent}
+      style={[styles.tabContent, { backgroundColor: colors.background }]}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        <RefreshControl 
+          refreshing={refreshing} 
+          onRefresh={handleRefresh}
+          tintColor={ModernColors.privacy.enhanced}
+          colors={[ModernColors.privacy.enhanced]}
+        />
       }
     >
-      {/* Shielded Balance Overview */}
-      <View style={styles.balanceCard}>
+      {/* Shielded Balance Overview with Gradient */}
+      <LinearGradient
+        colors={[ModernColors.privacy.enhanced, ModernColors.privacy.enhanced + '80']}
+        style={styles.balanceCard}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
         <View style={styles.balanceHeader}>
-          <Icon name="security" size={24} color="#4CAF50" />
-          <Text style={styles.balanceTitle}>Shielded Balance</Text>
+          <Icon name="security" size={24} color="#FFF" />
+          <Text style={[styles.balanceTitle, { color: '#FFF' }]}>Shielded Balance</Text>
         </View>
-        <Text style={styles.balanceAmount}>{totalShieldedBalance} ETH</Text>
-        <Text style={styles.balanceSubtext}>
+        <Text style={[styles.balanceAmount, { color: '#FFF' }]}>{totalShieldedBalance} ETH</Text>
+        <Text style={[styles.balanceSubtext, { color: 'rgba(255, 255, 255, 0.8)' }]}>
           {unspentCommitments.length} active note{unspentCommitments.length !== 1 ? 's' : ''}
         </Text>
         
         {/* Pool Statistics */}
-        <View style={styles.poolStats}>
+        <View style={[styles.poolStats, { borderTopColor: 'rgba(255, 255, 255, 0.2)' }]}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{poolStats.totalDeposits}</Text>
-            <Text style={styles.statLabel}>Total Deposits</Text>
+            <Text style={[styles.statValue, { color: '#FFF' }]}>{poolStats.totalDeposits}</Text>
+            <Text style={[styles.statLabel, { color: 'rgba(255, 255, 255, 0.8)' }]}>Total Deposits</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{poolStats.activeCommitments}</Text>
-            <Text style={styles.statLabel}>Active Notes</Text>
+            <Text style={[styles.statValue, { color: '#FFF' }]}>{poolStats.activeCommitments}</Text>
+            <Text style={[styles.statLabel, { color: 'rgba(255, 255, 255, 0.8)' }]}>Active Notes</Text>
           </View>
         </View>
-      </View>
+      </LinearGradient>
 
       {/* Quick Actions */}
-      <View style={styles.actionsCard}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
+      <View style={[styles.actionsCard, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Quick Actions</Text>
         <View style={styles.actionButtons}>
           <TouchableOpacity
             style={[styles.actionButton, styles.depositButton]}
@@ -359,23 +414,29 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
 
       {/* Commitments List */}
       {privacySettings.showBalances && (
-        <View style={styles.commitmentsCard}>
-          <Text style={styles.sectionTitle}>Your Notes</Text>
+        <View style={[styles.commitmentsCard, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Your Notes</Text>
           {unspentCommitments.length === 0 ? (
-            <Text style={styles.emptyText}>No active notes</Text>
+            <View style={[styles.emptyState, { backgroundColor: colors.surfaceSecondary }]}>
+              <Icon name="shield" size={48} color={ModernColors.textTertiary} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No active notes</Text>
+              <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>
+                Start shielding funds to create private notes
+              </Text>
+            </View>
           ) : (
             unspentCommitments.map((note: ShieldedNote, index: number) => (
-              <View key={index} style={styles.commitmentItem}>
+              <View key={index} style={[styles.commitmentItem, { borderBottomColor: colors.border }]}>
                 <View style={styles.commitmentInfo}>
-                  <Text style={styles.commitmentAmount}>
+                  <Text style={[styles.commitmentAmount, { color: colors.textPrimary }]}>
                     {parseFloat(ethers.utils.formatEther(note.amount)).toFixed(4)} ETH
                   </Text>
-                  <Text style={styles.commitmentHash}>
+                  <Text style={[styles.commitmentHash, { color: colors.textSecondary }]}>
                     {note.commitment.substring(0, 10)}...{note.commitment.substring(56)}
                   </Text>
                 </View>
                 <View style={styles.commitmentStatus}>
-                  <Icon name="verified" size={16} color="#4CAF50" />
+                  <Icon name="verified" size={16} color={ModernColors.success} />
                   <Text style={styles.statusText}>
                     {note.isSpent ? 'Spent' : 'Active'}
                   </Text>
@@ -389,9 +450,9 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
   );
 
   const renderTransactionsTab = () => (
-    <ScrollView style={styles.tabContent}>
+    <ScrollView style={[styles.tabContent, { backgroundColor: colors.background }]}>
       {/* Transaction Mode Selector */}
-      <View style={styles.modeSelector}>
+      <View style={[styles.modeSelector, { backgroundColor: colors.surface }]}>
         <TouchableOpacity
           style={[
             styles.modeButton,
@@ -403,6 +464,7 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
             style={[
               styles.modeButtonText,
               transactionMode === 'deposit' && styles.activeModeButtonText,
+              { color: transactionMode === 'deposit' ? '#FFF' : colors.textSecondary }
             ]}
           >
             Shield Funds
@@ -419,6 +481,7 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
             style={[
               styles.modeButtonText,
               transactionMode === 'withdraw' && styles.activeModeButtonText,
+              { color: transactionMode === 'withdraw' ? '#FFF' : colors.textSecondary }
             ]}
           >
             Unshield Funds
@@ -435,6 +498,7 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
             style={[
               styles.modeButtonText,
               transactionMode === 'transfer' && styles.activeModeButtonText,
+              { color: transactionMode === 'transfer' ? '#FFF' : colors.textSecondary }
             ]}
           >
             Private Transfer
@@ -443,47 +507,47 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
       </View>
 
       {/* Transaction Form */}
-      <View style={styles.transactionCard}>
-        <Text style={styles.sectionTitle}>
+      <View style={[styles.transactionCard, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
           {transactionMode === 'deposit' && 'Shield Funds'}
           {transactionMode === 'withdraw' && 'Unshield Funds'}
           {transactionMode === 'transfer' && 'Private Transfer'}
         </Text>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Amount (ETH)</Text>
+          <Text style={[styles.inputLabel, { color: colors.textPrimary }]}>Amount (ETH)</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.textPrimary, borderColor: colors.border }]}
             value={amount}
             onChangeText={setAmount}
             placeholder="0.00"
             keyboardType="numeric"
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.textTertiary}
           />
         </View>
 
         {(transactionMode === 'withdraw' || transactionMode === 'transfer') && (
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>
+            <Text style={[styles.inputLabel, { color: colors.textPrimary }]}>
               {transactionMode === 'withdraw' ? 'Recipient Address' : 'Transfer To'}
             </Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.textPrimary, borderColor: colors.border }]}
               value={recipient}
               onChangeText={setRecipient}
               placeholder="0x..."
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.textTertiary}
             />
           </View>
         )}
 
         {transactionMode === 'transfer' && (
-          <View style={styles.privacyOption}>
-            <Text style={styles.privacyLabel}>Keep transfer private</Text>
+          <View style={[styles.privacyOption, { backgroundColor: colors.surfaceSecondary }]}>
+            <Text style={[styles.privacyLabel, { color: colors.textPrimary }]}>Keep transfer private</Text>
             <Switch
               value={isPrivateTransaction}
               onValueChange={setIsPrivateTransaction}
-              trackColor={{ false: '#767577', true: '#4CAF50' }}
+              trackColor={{ false: colors.textTertiary, true: ModernColors.privacy.enhanced }}
               thumbColor={isPrivateTransaction ? '#FFF' : '#f4f3f4'}
             />
           </View>
@@ -515,8 +579,8 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
 
       {/* Privacy Notice */}
       <View style={styles.noticeCard}>
-        <Icon name="info" size={20} color="#2196F3" />
-        <Text style={styles.noticeText}>
+        <Icon name="info" size={20} color={ModernColors.info} />
+        <Text style={[styles.noticeText, { color: ModernColors.info }]}>
           {transactionMode === 'deposit' &&
             'Shielding funds provides privacy by breaking the link between your address and the funds.'}
           {transactionMode === 'withdraw' &&
@@ -529,103 +593,103 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
   );
 
   const renderSettingsTab = () => (
-    <ScrollView style={styles.tabContent}>
-      <View style={styles.settingsCard}>
-        <Text style={styles.sectionTitle}>Privacy Settings</Text>
+    <ScrollView style={[styles.tabContent, { backgroundColor: colors.background }]}>
+      <View style={[styles.settingsCard, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Privacy Settings</Text>
 
-        <View style={styles.settingItem}>
+        <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingTitle}>Auto-Shield</Text>
-            <Text style={styles.settingDescription}>
+            <Text style={[styles.settingTitle, { color: colors.textPrimary }]}>Auto-Shield</Text>
+            <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
               Automatically shield incoming funds above threshold
             </Text>
           </View>
           <Switch
             value={privacySettings.autoShield}
             onValueChange={(value) => handleSettingChange('autoShield', value)}
-            trackColor={{ false: '#767577', true: '#4CAF50' }}
+            trackColor={{ false: colors.textTertiary, true: ModernColors.privacy.enhanced }}
             thumbColor={privacySettings.autoShield ? '#FFF' : '#f4f3f4'}
           />
         </View>
 
         {privacySettings.autoShield && (
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Shield Threshold (ETH)</Text>
+            <Text style={[styles.inputLabel, { color: colors.textPrimary }]}>Shield Threshold (ETH)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.textPrimary, borderColor: colors.border }]}
               value={privacySettings.shieldThreshold}
               onChangeText={(value) => handleSettingChange('shieldThreshold', value)}
               placeholder="0.1"
               keyboardType="numeric"
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.textTertiary}
             />
           </View>
         )}
 
-        <View style={styles.settingItem}>
+        <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingTitle}>Default Privacy</Text>
-            <Text style={styles.settingDescription}>
+            <Text style={[styles.settingTitle, { color: colors.textPrimary }]}>Default Privacy</Text>
+            <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
               Use private transactions by default
             </Text>
           </View>
           <Switch
             value={privacySettings.defaultPrivacy}
             onValueChange={(value) => handleSettingChange('defaultPrivacy', value)}
-            trackColor={{ false: '#767577', true: '#4CAF50' }}
+            trackColor={{ false: colors.textTertiary, true: ModernColors.privacy.enhanced }}
             thumbColor={privacySettings.defaultPrivacy ? '#FFF' : '#f4f3f4'}
           />
         </View>
 
-        <View style={styles.settingItem}>
+        <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingTitle}>Show Balances</Text>
-            <Text style={styles.settingDescription}>
+            <Text style={[styles.settingTitle, { color: colors.textPrimary }]}>Show Balances</Text>
+            <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
               Display shielded balance details
             </Text>
           </View>
           <Switch
             value={privacySettings.showBalances}
             onValueChange={(value) => handleSettingChange('showBalances', value)}
-            trackColor={{ false: '#767577', true: '#4CAF50' }}
+            trackColor={{ false: colors.textTertiary, true: ModernColors.privacy.enhanced }}
             thumbColor={privacySettings.showBalances ? '#FFF' : '#f4f3f4'}
           />
         </View>
 
-        <View style={styles.settingItem}>
+        <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingTitle}>Require Confirmation</Text>
-            <Text style={styles.settingDescription}>
+            <Text style={[styles.settingTitle, { color: colors.textPrimary }]}>Require Confirmation</Text>
+            <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
               Ask for confirmation before privacy operations
             </Text>
           </View>
           <Switch
             value={privacySettings.requireConfirmation}
             onValueChange={(value) => handleSettingChange('requireConfirmation', value)}
-            trackColor={{ false: '#767577', true: '#4CAF50' }}
+            trackColor={{ false: colors.textTertiary, true: ModernColors.privacy.enhanced }}
             thumbColor={privacySettings.requireConfirmation ? '#FFF' : '#f4f3f4'}
           />
         </View>
       </View>
 
       {/* Privacy Information */}
-      <View style={styles.infoCard}>
-        <Text style={styles.sectionTitle}>About Privacy Features</Text>
-        <View style={styles.infoItem}>
-          <Icon name="security" size={20} color="#4CAF50" />
-          <Text style={styles.infoText}>
+      <View style={[styles.infoCard, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>About Privacy Features</Text>
+        <View style={[styles.infoItem, { backgroundColor: colors.surfaceSecondary }]}>
+          <Icon name="security" size={20} color={ModernColors.success} />
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             Zero-knowledge proofs ensure your transactions remain private
           </Text>
         </View>
-        <View style={styles.infoItem}>
-          <Icon name="group" size={20} color="#2196F3" />
-          <Text style={styles.infoText}>
+        <View style={[styles.infoItem, { backgroundColor: colors.surfaceSecondary }]}>
+          <Icon name="group" size={20} color={ModernColors.info} />
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             Larger anonymity sets provide better privacy protection
           </Text>
         </View>
-        <View style={styles.infoItem}>
-          <Icon name="lock" size={20} color="#FF9800" />
-          <Text style={styles.infoText}>
+        <View style={[styles.infoItem, { backgroundColor: colors.surfaceSecondary }]}>
+          <Icon name="lock" size={20} color={ModernColors.warning} />
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             Your keys never leave your device during proof generation
           </Text>
         </View>
@@ -643,60 +707,86 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Privacy</Text>
-        <TouchableOpacity 
-          style={styles.helpButton}
-          onPress={() => onNavigate && onNavigate('PrivacyAnalytics')}
-        >
-          <Icon name="analytics" size={24} color="#4CAF50" />
-        </TouchableOpacity>
-      </View>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle="light-content" backgroundColor={ModernColors.primaryGradient[0]} />
+      
+      {/* Modern Header with Gradient */}
+      <LinearGradient
+        colors={ModernColors.primaryGradient}
+        style={styles.headerGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="arrow-back" size={24} color="#FFF" />
+          </TouchableOpacity>
+          
+          <View style={styles.headerCenter}>
+            <CypherHeaderLogo color="light" />
+            <Text style={[styles.headerTitle, { color: colors.textInverse }]}>Privacy Dashboard</Text>
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.helpButton}
+            onPress={() => onNavigate && onNavigate('PrivacyAnalytics')}
+          >
+            <Icon name="analytics" size={24} color="#FFF" />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
 
-      {/* Tab Navigation */}
-      <View style={styles.tabNavigation}>
+      {/* Modern Tab Navigation */}
+      <View style={[styles.tabNavigation, { backgroundColor: colors.surface }]}>
         <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'balance' && styles.activeTab]}
+          style={[
+            styles.tabButton, 
+            activeTab === 'balance' && [styles.activeTab, { borderBottomColor: ModernColors.privacy.enhanced }]
+          ]}
           onPress={() => setActiveTab('balance')}
         >
           <Text
             style={[
               styles.tabButtonText,
-              activeTab === 'balance' && styles.activeTabText,
+              activeTab === 'balance' && [styles.activeTabText, { color: ModernColors.privacy.enhanced }],
+              { color: colors.textSecondary }
             ]}
           >
             Balance
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'transactions' && styles.activeTab]}
+          style={[
+            styles.tabButton, 
+            activeTab === 'transactions' && [styles.activeTab, { borderBottomColor: ModernColors.privacy.enhanced }]
+          ]}
           onPress={() => setActiveTab('transactions')}
         >
           <Text
             style={[
               styles.tabButtonText,
-              activeTab === 'transactions' && styles.activeTabText,
+              activeTab === 'transactions' && [styles.activeTabText, { color: ModernColors.privacy.enhanced }],
+              { color: colors.textSecondary }
             ]}
           >
             Transactions
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'settings' && styles.activeTab]}
+          style={[
+            styles.tabButton, 
+            activeTab === 'settings' && [styles.activeTab, { borderBottomColor: ModernColors.privacy.enhanced }]
+          ]}
           onPress={() => setActiveTab('settings')}
         >
           <Text
             style={[
               styles.tabButtonText,
-              activeTab === 'settings' && styles.activeTabText,
+              activeTab === 'settings' && [styles.activeTabText, { color: ModernColors.privacy.enhanced }],
+              { color: colors.textSecondary }
             ]}
           >
             Settings
@@ -715,105 +805,144 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: ModernColors.background,
+  },
+  
+  // Modern Header Styles
+  headerGradient: {
+    paddingTop: 20,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    paddingHorizontal: ModernSpacing.lg,
+    paddingVertical: ModernSpacing.md,
+    minHeight: 60,
+  },
+  headerCenter: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   backButton: {
-    padding: 4,
+    padding: ModernSpacing.xs,
+    borderRadius: ModernBorderRadius.sm,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: ModernColors.textInverse,
   },
   helpButton: {
-    padding: 4,
+    padding: ModernSpacing.xs,
+    borderRadius: ModernBorderRadius.sm,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
+  
+  // Modern Tab Navigation
   tabNavigation: {
     flexDirection: 'row',
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    backgroundColor: ModernColors.surface,
+    ...ModernShadows.small,
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 16,
+    paddingVertical: ModernSpacing.lg,
     alignItems: 'center',
+    position: 'relative',
   },
   activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#4CAF50',
+    borderBottomWidth: 3,
+    borderBottomColor: ModernColors.privacy.enhanced,
   },
   tabButtonText: {
     fontSize: 14,
-    color: '#666',
+    color: ModernColors.textSecondary,
     fontWeight: '500',
   },
   activeTabText: {
-    color: '#4CAF50',
+    color: ModernColors.privacy.enhanced,
     fontWeight: '600',
   },
+  
+  // Content Area
   tabContent: {
     flex: 1,
-    padding: 16,
+    padding: ModernSpacing.lg,
+    backgroundColor: ModernColors.background,
   },
+  
+  // Modern Card Styles
   balanceCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: ModernColors.surface,
+    borderRadius: ModernBorderRadius.xl,
+    padding: ModernSpacing.xl,
+    marginBottom: ModernSpacing.lg,
+    ...ModernShadows.medium,
+    overflow: 'hidden',
   },
   balanceHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: ModernSpacing.md,
   },
   balanceTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
-    marginLeft: 8,
+    color: ModernColors.textPrimary,
+    marginLeft: ModernSpacing.sm,
   },
   balanceAmount: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-    marginBottom: 4,
+    fontSize: 32,
+    fontWeight: '700',
+    color: ModernColors.privacy.enhanced,
+    marginBottom: ModernSpacing.xs,
   },
   balanceSubtext: {
     fontSize: 14,
-    color: '#666',
+    color: ModernColors.textSecondary,
   },
+  
+  // Pool Statistics
+  poolStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: ModernSpacing.lg,
+    paddingTop: ModernSpacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: ModernColors.border,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: ModernColors.textPrimary,
+    marginBottom: ModernSpacing.xs,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: ModernColors.textSecondary,
+    textAlign: 'center',
+  },
+  
+  // Action Cards
   actionsCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: ModernColors.surface,
+    borderRadius: ModernBorderRadius.xl,
+    padding: ModernSpacing.xl,
+    marginBottom: ModernSpacing.lg,
+    ...ModernShadows.medium,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 16,
+    color: ModernColors.textPrimary,
+    marginBottom: ModernSpacing.lg,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -824,49 +953,60 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginHorizontal: 4,
+    paddingVertical: ModernSpacing.md,
+    paddingHorizontal: ModernSpacing.lg,
+    borderRadius: ModernBorderRadius.md,
+    marginHorizontal: ModernSpacing.xs,
+    ...ModernShadows.small,
   },
   depositButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: ModernColors.success,
   },
   withdrawButton: {
-    backgroundColor: '#FF9800',
+    backgroundColor: ModernColors.warning,
   },
   transferButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: ModernColors.info,
   },
   actionButtonText: {
-    color: '#FFF',
+    color: ModernColors.textInverse,
     fontSize: 12,
     fontWeight: '600',
-    marginLeft: 4,
+    marginLeft: ModernSpacing.xs,
   },
+  
+  // Commitments List
   commitmentsCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: ModernColors.surface,
+    borderRadius: ModernBorderRadius.xl,
+    padding: ModernSpacing.xl,
+    ...ModernShadows.medium,
   },
   emptyText: {
     textAlign: 'center',
-    color: '#666',
+    color: ModernColors.textSecondary,
     fontSize: 14,
     fontStyle: 'italic',
+    padding: ModernSpacing.xl,
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: ModernSpacing.xl,
+    borderRadius: ModernBorderRadius.md,
+  },
+  emptySubtext: {
+    textAlign: 'center',
+    color: ModernColors.textTertiary,
+    fontSize: 12,
+    marginTop: ModernSpacing.xs,
   },
   commitmentItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: ModernSpacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: ModernColors.border,
   },
   commitmentInfo: {
     flex: 1,
@@ -874,213 +1014,204 @@ const styles = StyleSheet.create({
   commitmentAmount: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: ModernColors.textPrimary,
   },
   commitmentHash: {
     fontSize: 12,
-    color: '#666',
+    color: ModernColors.textSecondary,
     fontFamily: 'monospace',
+    marginTop: ModernSpacing.xs,
   },
   commitmentStatus: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: ModernColors.success + '20',
+    paddingHorizontal: ModernSpacing.sm,
+    paddingVertical: ModernSpacing.xs,
+    borderRadius: ModernBorderRadius.sm,
   },
   statusText: {
     fontSize: 12,
-    color: '#4CAF50',
-    marginLeft: 4,
+    color: ModernColors.success,
+    marginLeft: ModernSpacing.xs,
     fontWeight: '500',
   },
+  
+  // Transaction Mode Selector
   modeSelector: {
     flexDirection: 'row',
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: ModernColors.surface,
+    borderRadius: ModernBorderRadius.xl,
+    padding: ModernSpacing.xs,
+    marginBottom: ModernSpacing.lg,
+    ...ModernShadows.medium,
   },
   modeButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: ModernSpacing.md,
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: ModernBorderRadius.md,
   },
   activeModeButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: ModernColors.privacy.enhanced,
+    ...ModernShadows.small,
   },
   modeButtonText: {
     fontSize: 12,
-    color: '#666',
+    color: ModernColors.textSecondary,
     fontWeight: '500',
   },
   activeModeButtonText: {
-    color: '#FFF',
+    color: ModernColors.textInverse,
     fontWeight: '600',
   },
+  
+  // Transaction Card
   transactionCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: ModernColors.surface,
+    borderRadius: ModernBorderRadius.xl,
+    padding: ModernSpacing.xl,
+    marginBottom: ModernSpacing.lg,
+    ...ModernShadows.medium,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: ModernSpacing.lg,
   },
   inputLabel: {
     fontSize: 14,
-    color: '#333',
-    marginBottom: 8,
+    color: ModernColors.textPrimary,
+    marginBottom: ModernSpacing.sm,
     fontWeight: '500',
   },
   input: {
+    backgroundColor: ModernColors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    borderColor: ModernColors.border,
+    borderRadius: ModernBorderRadius.md,
+    paddingHorizontal: ModernSpacing.lg,
+    paddingVertical: ModernSpacing.md,
     fontSize: 16,
-    color: '#333',
-    backgroundColor: '#FAFAFA',
+    color: ModernColors.textPrimary,
   },
   privacyOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: ModernSpacing.lg,
+    padding: ModernSpacing.md,
+    backgroundColor: ModernColors.surfaceSecondary,
+    borderRadius: ModernBorderRadius.md,
   },
   privacyLabel: {
     fontSize: 14,
-    color: '#333',
+    color: ModernColors.textPrimary,
     fontWeight: '500',
   },
   transactionButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 16,
-    borderRadius: 8,
+    backgroundColor: ModernColors.privacy.enhanced,
+    paddingVertical: ModernSpacing.lg,
+    borderRadius: ModernBorderRadius.md,
     alignItems: 'center',
+    justifyContent: 'center',
+    ...ModernShadows.small,
   },
   disabledButton: {
-    backgroundColor: '#CCC',
+    backgroundColor: ModernColors.textTertiary,
   },
   transactionButtonText: {
-    color: '#FFF',
+    color: ModernColors.textInverse,
     fontSize: 16,
     fontWeight: '600',
   },
+  
+  // Notice Card
   noticeCard: {
     flexDirection: 'row',
-    backgroundColor: '#E3F2FD',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: ModernColors.info + '20',
+    borderRadius: ModernBorderRadius.md,
+    padding: ModernSpacing.lg,
     alignItems: 'flex-start',
+    borderLeftWidth: 4,
+    borderLeftColor: ModernColors.info,
   },
   noticeText: {
     flex: 1,
     fontSize: 12,
-    color: '#1976D2',
-    marginLeft: 8,
+    color: ModernColors.info,
+    marginLeft: ModernSpacing.sm,
     lineHeight: 16,
   },
+  
+  // Settings Card
   settingsCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: ModernColors.surface,
+    borderRadius: ModernBorderRadius.xl,
+    padding: ModernSpacing.xl,
+    marginBottom: ModernSpacing.lg,
+    ...ModernShadows.medium,
   },
   settingItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: ModernSpacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: ModernColors.border,
   },
   settingInfo: {
     flex: 1,
-    marginRight: 16,
+    marginRight: ModernSpacing.lg,
   },
   settingTitle: {
     fontSize: 14,
-    color: '#333',
+    color: ModernColors.textPrimary,
     fontWeight: '500',
-    marginBottom: 2,
+    marginBottom: ModernSpacing.xs,
   },
   settingDescription: {
     fontSize: 12,
-    color: '#666',
+    color: ModernColors.textSecondary,
+    lineHeight: 16,
   },
+  
+  // Info Card
   infoCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: ModernColors.surface,
+    borderRadius: ModernBorderRadius.xl,
+    padding: ModernSpacing.xl,
+    ...ModernShadows.medium,
   },
   infoItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: ModernSpacing.md,
+    padding: ModernSpacing.sm,
+    backgroundColor: ModernColors.surfaceSecondary,
+    borderRadius: ModernBorderRadius.sm,
   },
   infoText: {
     flex: 1,
     fontSize: 12,
-    color: '#666',
-    marginLeft: 8,
+    color: ModernColors.textSecondary,
+    marginLeft: ModernSpacing.sm,
     lineHeight: 16,
   },
   educationButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#2196F3',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginTop: 16,
+    backgroundColor: ModernColors.info,
+    borderRadius: ModernBorderRadius.md,
+    paddingVertical: ModernSpacing.md,
+    paddingHorizontal: ModernSpacing.lg,
+    marginTop: ModernSpacing.lg,
+    ...ModernShadows.small,
   },
   educationButtonText: {
-    color: '#FFF',
+    color: ModernColors.textInverse,
     fontSize: 14,
     fontWeight: '600',
-    marginLeft: 8,
-  },
-  poolStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
+    marginLeft: ModernSpacing.sm,
   },
 });
 
