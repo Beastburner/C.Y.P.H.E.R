@@ -28,6 +28,7 @@ import NetworkSelector from '../screens/Settings/NetworkSelector';
 import SecuritySettings from '../screens/Settings/SecuritySettings';
 import BrowserScreen from '../screens/Browser/BrowserScreen';
 import DAppBrowserScreen from '../screens/DApp/DAppBrowserScreen';
+import PrivacyDashboard from '../screens/PrivacyDashboard';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -83,8 +84,8 @@ const CustomTabBar = ({ state, descriptors, navigation }: TabBarProps) => {
         return { icon: '💼', color: iconColor };
       case 'Trading':
         return { icon: '📊', color: iconColor };
-      case 'CrossChain':
-        return { icon: '🌐', color: iconColor };
+      case 'Privacy':
+        return { icon: '🛡️', color: iconColor };
       case 'AI':
         return { icon: '🧠', color: iconColor };
       case 'More':
@@ -161,7 +162,21 @@ const PortfolioStack = () => (
     <Stack.Screen name="NFT" component={NFTScreen} />
     <Stack.Screen name="Send" component={SendWrapper} />
     <Stack.Screen name="Receive" component={ReceiveWrapper} />
-    <Stack.Screen name="Swap" component={SwapScreenClean} />
+    <Stack.Screen name="Privacy" component={PrivacyDashboard} />
+  </Stack.Navigator>
+);
+
+// Privacy Stack Navigator
+const PrivacyStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerShown: false,
+      cardStyle: { backgroundColor: CypherDesignSystem.colors.background }
+    }}
+  >
+    <Stack.Screen name="PrivacyMain" component={PrivacyDashboard} />
+    <Stack.Screen name="Send" component={SendWrapper} />
+    <Stack.Screen name="Receive" component={ReceiveWrapper} />
   </Stack.Navigator>
 );
 
@@ -217,6 +232,8 @@ const MoreStack = () => (
     }}
   >
     <Stack.Screen name="Settings" component={SettingsWrapper} />
+    <Stack.Screen name="CrossChainMain" component={CrossChainDashboard} />
+    <Stack.Screen name="Bridge" component={BridgeInterface} />
     <Stack.Screen name="NetworkSelector" component={NetworkSelectorWrapper} />
     <Stack.Screen name="SecuritySettings" component={SecuritySettingsWrapper} />
     <Stack.Screen name="Browser" component={BrowserWrapper} />
@@ -247,10 +264,10 @@ const MainTabs = () => (
       }}
     />
     <Tab.Screen
-      name="CrossChain"
-      component={CrossChainStack}
+      name="Privacy"
+      component={PrivacyStack}
       options={{
-        tabBarLabel: 'Cross-Chain',
+        tabBarLabel: 'Privacy',
       }}
     />
     <Tab.Screen
