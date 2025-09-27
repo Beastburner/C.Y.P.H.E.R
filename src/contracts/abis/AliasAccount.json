@@ -1,0 +1,45 @@
+[
+  {
+    "type": "function",
+    "name": "createAlias",
+    "inputs": [
+      {"name": "aliasName", "type": "string"},
+      {"name": "publicKey", "type": "bytes32"}
+    ],
+    "outputs": [
+      {"name": "aliasId", "type": "bytes32"}
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "linkToShieldedPool",
+    "inputs": [
+      {"name": "aliasId", "type": "bytes32"},
+      {"name": "shieldedPoolAddress", "type": "address"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "deposit",
+    "inputs": [
+      {"name": "aliasId", "type": "bytes32"},
+      {"name": "amount", "type": "uint256"}
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "withdraw",
+    "inputs": [
+      {"name": "aliasId", "type": "bytes32"},
+      {"name": "amount", "type": "uint256"},
+      {"name": "proof", "type": "bytes"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  }
+]

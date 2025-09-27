@@ -1,0 +1,34 @@
+[
+  {
+    "type": "function",
+    "name": "registerAlias",
+    "inputs": [
+      {"name": "aliasHash", "type": "bytes32"},
+      {"name": "publicKey", "type": "bytes32"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateAliasMetadata",
+    "inputs": [
+      {"name": "aliasHash", "type": "bytes32"},
+      {"name": "encryptedMetadata", "type": "bytes"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getAliasInfo",
+    "inputs": [
+      {"name": "aliasHash", "type": "bytes32"}
+    ],
+    "outputs": [
+      {"name": "publicKey", "type": "bytes32"},
+      {"name": "isActive", "type": "bool"}
+    ],
+    "stateMutability": "view"
+  }
+]

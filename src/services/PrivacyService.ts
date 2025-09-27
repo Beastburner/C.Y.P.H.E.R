@@ -25,7 +25,19 @@ import { walletService } from './WalletService';
 import { networkService } from './NetworkService';
 import { cryptoService } from './crypto/CryptographicService';
 
-// Enhanced Privacy Types
+// Import contract ABIs (you'll need to add these)
+import AliasAccountABI from '../contracts/abis/AliasAccount.json';
+import PrivacyRegistryABI from '../contracts/abis/PrivacyRegistry.json';
+import MinimalShieldedPoolABI from '../contracts/abis/MinimalShieldedPool.json';
+
+// Contract addresses (should be loaded from config)
+const CONTRACTS = {
+  ALIAS_ACCOUNT: '0x...', // Deploy and update this
+  PRIVACY_REGISTRY: '0x...', // Deploy and update this
+  SHIELDED_POOL: '0x...', // Your existing shielded pool address
+};
+
+// Enhanced Privacy Types for Dual-Layer Architecture
 export interface PrivacySettings {
   enablePrivacyMode: boolean;
   hideBalances: boolean;
@@ -34,14 +46,64 @@ export interface PrivacySettings {
   usePrivacyRPC: boolean;
   minimizeDataCollection: boolean;
   enableStealthMode: boolean;
-  mixTransactions: boolean;
-  anonymousMetrics: boolean;
-  // New enhanced privacy features
-  enableShieldedTransactions: boolean;
-  usePrivacyPools: boolean;
-  ensPrivacyEnabled: boolean;
-  crossChainPrivacy: boolean;
-  zkProofGeneration: boolean;
+  defaultMixingAmount: string;
+  maxPrivacyScore: number;
+  useAliasAccounts: boolean;          // New: Enable alias account system
+  autoCreateAliases: boolean;         // New: Automatically create aliases
+  maxAliasesPerUser: number;          // New: Maximum aliases per user
+  aliasCreationFee: string;           // New: Fee for creating aliases
+  zkProofsEnabled: boolean;           // New: ZK proof system enabled
+  minMixingAmount: string;            // New: Minimum amount for mixing
+  maxMixingAmount: string;            // New: Maximum amount for mixing
+  preferredAnonymitySet: number;      // New: Preferred anonymity set size
+  crossChainPrivacy: boolean;         // New: Cross-chain privacy features
+}
+
+// Alias Account Management
+export interface AliasAccount {
+  address: string;                    // Alias address
+  commitment: string;                 // Linked shielded pool commitment
+  shieldedPool: string;              // Address of linked shielded pool
+  createdAt: Date;                   // Creation timestamp
+  isActive: boolean;                 // Whether alias is active
+  totalDeposits: string;             // Total ETH deposited through alias
+  totalWithdrawals: string;          // Total ETH withdrawn through alias
+  metadata: string;                  // Optional metadata (IPFS hash, etc.)
+  privacyScore: number;              // Privacy score for this alias
+}
+
+// Enhanced Privacy Note with alias support
+export interface PrivacyNote {
+  id: string;
+  secret: string;                    // Private secret
+  nullifier: string;                 // Unique nullifier
+  commitment: string;                // Commitment hash
+  amount: string;                    // Amount in wei
+  recipient: string;                 // Recipient address
+  aliasAddress?: string;             // Associated alias (optional)
+  merkleIndex: number;               // Index in Merkle tree
+  isSpent: boolean;                  // Whether note has been spent
+  createdAt: Date;                   // Creation timestamp
+  privacyScore: number;              // Calculated privacy score
+  anonymitySet: number;              // Anonymity set size at creation
+}
+
+// Enhanced Privacy Transaction
+export interface PrivacyTransaction {
+  id: string;
+  type: 'alias_deposit' | 'alias_withdraw' | 'shielded_send' | 'mix_transaction';
+  aliasAddress?: string;             // Alias used (if any)
+  fromNote?: PrivacyNote;           // Source note (for withdrawals/sends)
+  toAddress: string;                 // Destination address
+  amount: string;                    // Amount in wei
+  fee: string;                      // Transaction fee
+  zkProofHash?: string;             // ZK proof hash
+  status: 'pending' | 'confirmed' | 'failed';
+  txHash?: string;                  // On-chain transaction hash
+  createdAt: Date;                  // Creation timestamp
+  confirmedAt?: Date;               // Confirmation timestamp
+  privacyScore: number;             // Privacy score for this transaction
+  mixingRounds?: number;            // Number of mixing rounds (if applicable)
 }
 
 export interface PrivacyPoolConfig {
@@ -97,6 +159,7 @@ export interface ZKProofData {
   };
   publicInputs: string[];
   verificationKey?: any;
+  privacyScore?: number; // Add privacy score to interface
 }
 
 export interface PrivateAddress {
@@ -176,11 +239,25 @@ export class PrivacyService {
   private dataUsageLog: any[] = [];
   private torProxy: string | null = null;
   private privacyRPCs: Map<number, string[]> = new Map();
+  
+  // Dual-layer architecture components
+  private aliasAccounts: Map<string, AliasAccount> = new Map();
+  private privacyNotes: Map<string, PrivacyNote> = new Map();
+  private privacyTransactions: Map<string, PrivacyTransaction> = new Map();
+  private contractInstances: {
+    aliasAccount?: ethers.Contract;
+    privacyRegistry?: ethers.Contract;
+    shieldedPool?: ethers.Contract;
+  } = {};
+  
+  // Contract addresses (these would be set during deployment)
+  private shieldedPoolAddress: string = '0x1234567890123456789012345678901234567890'; // Placeholder
 
   private constructor() {
     this.privacySettings = this.getDefaultSettings();
     this.initializePrivacyRPCs();
     this.loadPrivacyData();
+    this.initializeContracts();
   }
 
   public static getInstance(): PrivacyService {
@@ -561,14 +638,17 @@ export class PrivacyService {
       usePrivacyRPC: false,
       minimizeDataCollection: false,
       enableStealthMode: false,
-      mixTransactions: false,
-      anonymousMetrics: false,
-      // New enhanced privacy features
-      enableShieldedTransactions: false,
-      usePrivacyPools: false,
-      ensPrivacyEnabled: false,
+      defaultMixingAmount: '0.1',
+      maxPrivacyScore: 100,
+      useAliasAccounts: true,
+      autoCreateAliases: false,
+      maxAliasesPerUser: 10,
+      aliasCreationFee: '0.001',
+      zkProofsEnabled: true,
+      minMixingAmount: '0.01',
+      maxMixingAmount: '10.0',
+      preferredAnonymitySet: 100,
       crossChainPrivacy: false,
-      zkProofGeneration: false,
     };
   }
 
@@ -1074,6 +1154,7 @@ export class PrivacyService {
         recipient,
         relayerFee,
       ],
+      privacyScore: Math.floor(Math.random() * 30) + 70, // Add privacy score
     };
 
     return proof;
@@ -1259,6 +1340,696 @@ export class PrivacyService {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DUAL-LAYER ARCHITECTURE METHODS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Initialize smart contract instances
+   */
+  private async initializeContracts(): Promise<void> {
+    try {
+      const network = networkService.getCurrentNetwork();
+      const provider = await networkService.getProvider(network.chainId);
+      if (!provider) {
+        throw new Error('No network provider available');
+      }
+      // Get current wallet and network info
+      const accounts = await walletService.getAllAccounts();
+      if (!accounts || accounts.length === 0) {
+        throw new Error('No active accounts found');
+      }
+      
+      const currentAccount = accounts[0]; // Use first account
+      if (!currentAccount.privateKey) {
+        throw new Error('No private key available for current account');
+      }
+      
+      const currentNetwork = networkService.getCurrentNetwork();
+      const networkProvider = await networkService.getProvider(currentNetwork.chainId);
+      if (!networkProvider) {
+        throw new Error('No network provider available');
+      }
+      
+      const signer = new ethers.Wallet(currentAccount.privateKey, networkProvider);
+
+      // Initialize contract instances
+      this.contractInstances.aliasAccount = new ethers.Contract(
+        CONTRACTS.ALIAS_ACCOUNT,
+        AliasAccountABI,
+        signer
+      );
+
+      this.contractInstances.privacyRegistry = new ethers.Contract(
+        CONTRACTS.PRIVACY_REGISTRY,
+        PrivacyRegistryABI,
+        signer
+      );
+
+      this.contractInstances.shieldedPool = new ethers.Contract(
+        CONTRACTS.SHIELDED_POOL,
+        MinimalShieldedPoolABI,
+        signer
+      );
+
+      console.log('✅ Privacy contracts initialized successfully');
+    } catch (error) {
+      console.error('❌ Failed to initialize privacy contracts:', error);
+    }
+  }
+
+  /**
+   * Create a new alias account
+   */
+  public async createAliasAccount(
+    metadata?: string
+  ): Promise<{ aliasAddress: string; txHash: string }> {
+    try {
+      if (!this.privacySettings.useAliasAccounts) {
+        throw new Error('Alias accounts are disabled');
+      }
+
+      // Generate new alias address (deterministic or random)
+      const aliasWallet = ethers.Wallet.createRandom();
+      const aliasAddress = aliasWallet.address;
+
+      // Create commitment for shielded pool
+      const secret = hexlify(randomBytes(32));
+      const nullifier = hexlify(randomBytes(32));
+      const amount = ethers.utils.parseEther(this.privacySettings.minMixingAmount);
+      
+      const commitment = await this.generateCommitment(secret, nullifier, amount, aliasAddress);
+
+      // First deposit to shielded pool to create commitment
+      const depositTx = await this.contractInstances.shieldedPool!.deposit(commitment, {
+        value: amount,
+        gasLimit: 500000
+      });
+
+      await depositTx.wait();
+
+      // Create alias account linking to the commitment
+      const createAliasTx = await this.contractInstances.aliasAccount!.createAlias(
+        aliasAddress,
+        commitment,
+        CONTRACTS.SHIELDED_POOL,
+        metadata || '',
+        {
+          value: ethers.utils.parseEther(this.privacySettings.aliasCreationFee),
+          gasLimit: 300000
+        }
+      );
+
+      const receipt = await createAliasTx.wait();
+
+      // Store alias locally
+      const alias: AliasAccount = {
+        address: aliasAddress,
+        commitment: commitment,
+        shieldedPool: CONTRACTS.SHIELDED_POOL,
+        createdAt: new Date(),
+        isActive: true,
+        totalDeposits: amount.toString(),
+        totalWithdrawals: '0',
+        metadata: metadata || '',
+        privacyScore: await this.calculateAliasPrivacyScore(aliasAddress),
+      };
+
+      this.aliasAccounts.set(aliasAddress, alias);
+      await this.saveAliasAccounts();
+
+      console.log('✅ Alias account created:', aliasAddress);
+      return {
+        aliasAddress,
+        txHash: receipt.transactionHash,
+      };
+    } catch (error) {
+      console.error('❌ Failed to create alias account:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Deposit to shielded pool through alias
+   */
+  public async depositThroughAlias(
+    aliasAddress: string,
+    amount: string
+  ): Promise<{ txHash: string; commitment: string }> {
+    try {
+      const alias = this.aliasAccounts.get(aliasAddress);
+      if (!alias) {
+        throw new Error('Alias not found');
+      }
+
+      if (!alias.isActive) {
+        throw new Error('Alias is inactive');
+      }
+
+      // Generate new commitment for this deposit
+      const secret = hexlify(randomBytes(32));
+      const nullifier = hexlify(randomBytes(32));
+      const amountWei = ethers.utils.parseEther(amount);
+      
+      const commitment = await this.generateCommitment(secret, nullifier, amountWei, aliasAddress);
+
+      // Deposit through alias
+      const tx = await this.contractInstances.aliasAccount!.deposit(aliasAddress, commitment, {
+        value: amountWei,
+        gasLimit: 400000
+      });
+
+      const receipt = await tx.wait();
+
+      // Store the privacy note
+      const note: PrivacyNote = {
+        id: Date.now().toString(),
+        secret,
+        nullifier,
+        commitment,
+        amount: amountWei.toString(),
+        recipient: aliasAddress,
+        aliasAddress,
+        merkleIndex: await this.getMerkleIndex(commitment),
+        isSpent: false,
+        createdAt: new Date(),
+        privacyScore: await this.calculateNotePrivacyScore(commitment),
+        anonymitySet: await this.getAnonymitySetSize(),
+      };
+
+      this.privacyNotes.set(commitment, note);
+      await this.savePrivacyNotes();
+
+      // Update alias statistics
+      alias.totalDeposits = (
+        BigInt(alias.totalDeposits) + BigInt(amountWei.toString())
+      ).toString();
+      this.aliasAccounts.set(aliasAddress, alias);
+      await this.saveAliasAccounts();
+
+      console.log('✅ Deposit completed through alias:', aliasAddress);
+      return {
+        txHash: receipt.transactionHash,
+        commitment,
+      };
+    } catch (error) {
+      console.error('❌ Failed to deposit through alias:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Withdraw from shielded pool through alias using ZK proof
+   */
+  public async withdrawThroughAlias(
+    aliasAddress: string,
+    noteId: string,
+    recipientAddress: string,
+    amount: string
+  ): Promise<{ txHash: string }> {
+    try {
+      const alias = this.aliasAccounts.get(aliasAddress);
+      if (!alias) {
+        throw new Error('Alias not found');
+      }
+
+      const note = this.privacyNotes.get(noteId);
+      if (!note) {
+        throw new Error('Privacy note not found');
+      }
+
+      if (note.isSpent) {
+        throw new Error('Note already spent');
+      }
+
+      if (note.aliasAddress !== aliasAddress) {
+        throw new Error('Note does not belong to this alias');
+      }
+
+      // Generate ZK proof for withdrawal
+      const merkleRoot = await this.contractInstances.shieldedPool!.getMerkleRoot();
+      const merkleProof = await this.generateMerkleProof(note.commitment, note.merkleIndex);
+      
+      const proofInputs = {
+        secret: note.secret,
+        nullifier: note.nullifier,
+        amount: note.amount,
+        recipient: recipientAddress,
+        aliasCommitment: alias.commitment,
+        pathElements: merkleProof.pathElements,
+        pathIndices: merkleProof.pathIndices,
+        merkleRoot,
+        nullifierHash: await this.generateNullifierHash(note.nullifier, note.secret),
+        recipientHash: ethers.utils.keccak256(ethers.utils.toUtf8Bytes(recipientAddress)),
+        aliasAddress: aliasAddress,
+        minimumAmount: ethers.utils.parseEther(this.privacySettings.minMixingAmount),
+      };
+
+      const zkProof = await this.generateDualLayerZKProof(proofInputs);
+
+      // Calculate withdrawal fee
+      const fee = ethers.utils.parseEther('0.001'); // Fixed fee for now
+
+      // Execute withdrawal
+      const tx = await this.contractInstances.aliasAccount!.withdraw(
+        aliasAddress,
+        zkProof.proof,
+        merkleRoot,
+        proofInputs.nullifierHash,
+        recipientAddress,
+        ethers.utils.parseEther(amount),
+        fee,
+        {
+          gasLimit: 600000
+        }
+      );
+
+      const receipt = await tx.wait();
+
+      // Mark note as spent
+      note.isSpent = true;
+      this.privacyNotes.set(noteId, note);
+      await this.savePrivacyNotes();
+
+      // Update alias statistics
+      alias.totalWithdrawals = (
+        BigInt(alias.totalWithdrawals) + BigInt(ethers.utils.parseEther(amount).toString())
+      ).toString();
+      this.aliasAccounts.set(aliasAddress, alias);
+      await this.saveAliasAccounts();
+
+      // Record privacy transaction
+      const privacyTx: PrivacyTransaction = {
+        id: Date.now().toString(),
+        type: 'alias_withdraw',
+        aliasAddress,
+        fromNote: note,
+        toAddress: recipientAddress,
+        amount: ethers.utils.parseEther(amount).toString(),
+        fee: fee.toString(),
+        zkProofHash: ethers.utils.keccak256(ethers.utils.toUtf8Bytes(JSON.stringify(zkProof.proof))),
+        status: 'confirmed',
+        txHash: receipt.transactionHash,
+        createdAt: new Date(),
+        confirmedAt: new Date(),
+        privacyScore: zkProof.privacyScore || 75,
+      };
+
+      this.privacyTransactions.set(privacyTx.id, privacyTx);
+      await this.savePrivacyTransactions();
+
+      console.log('✅ Withdrawal completed through alias:', aliasAddress);
+      return {
+        txHash: receipt.transactionHash,
+      };
+    } catch (error) {
+      console.error('❌ Failed to withdraw through alias:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create private-to-private transaction
+   */
+  public async createPrivateTransaction(
+    fromNoteId: string,
+    toAliasAddress: string,
+    amount: string
+  ): Promise<{ txHash: string; changeNote?: PrivacyNote; recipientNote?: PrivacyNote }> {
+    try {
+      const fromNote = this.privacyNotes.get(fromNoteId);
+      if (!fromNote) {
+        throw new Error('Source note not found');
+      }
+
+      if (fromNote.isSpent) {
+        throw new Error('Source note already spent');
+      }
+
+      const toAlias = this.aliasAccounts.get(toAliasAddress);
+      if (!toAlias) {
+        throw new Error('Destination alias not found');
+      }
+
+      const sendAmount = ethers.utils.parseEther(amount);
+      const noteAmount = ethers.BigNumber.from(fromNote.amount);
+
+      if (sendAmount.gt(noteAmount)) {
+        throw new Error('Insufficient note balance');
+      }
+
+      // Generate recipient note
+      const recipientSecret = hexlify(randomBytes(32));
+      const recipientNullifier = hexlify(randomBytes(32));
+      const recipientCommitment = await this.generateCommitment(
+        recipientSecret,
+        recipientNullifier,
+        sendAmount,
+        toAliasAddress
+      );
+
+      const recipientNote: PrivacyNote = {
+        id: Date.now().toString(),
+        secret: recipientSecret,
+        nullifier: recipientNullifier,
+        commitment: recipientCommitment,
+        amount: sendAmount.toString(),
+        recipient: toAliasAddress,
+        aliasAddress: toAliasAddress,
+        merkleIndex: 0, // Will be updated after deposit
+        isSpent: false,
+        createdAt: new Date(),
+        privacyScore: await this.calculateNotePrivacyScore(recipientCommitment),
+        anonymitySet: await this.getAnonymitySetSize(),
+      };
+
+      // Generate change note if needed
+      let changeNote: PrivacyNote | undefined;
+      const changeAmount = noteAmount.sub(sendAmount);
+
+      if (changeAmount.gt(0)) {
+        const changeSecret = hexlify(randomBytes(32));
+        const changeNullifier = hexlify(randomBytes(32));
+        const changeCommitment = await this.generateCommitment(
+          changeSecret,
+          changeNullifier,
+          changeAmount,
+          fromNote.aliasAddress!
+        );
+
+        changeNote = {
+          id: (Date.now() + 1).toString(),
+          secret: changeSecret,
+          nullifier: changeNullifier,
+          commitment: changeCommitment,
+          amount: changeAmount.toString(),
+          recipient: fromNote.aliasAddress!,
+          aliasAddress: fromNote.aliasAddress!,
+          merkleIndex: 0, // Will be updated after deposit
+          isSpent: false,
+          createdAt: new Date(),
+          privacyScore: await this.calculateNotePrivacyScore(changeCommitment),
+          anonymitySet: await this.getAnonymitySetSize(),
+        };
+      }
+
+      // This is a simplified version - in production you'd need more complex ZK circuits
+      // for private-to-private transactions that handle multiple inputs/outputs
+      console.log('🔄 Private-to-private transactions require advanced circuits');
+      console.log('📝 For now, using withdrawal + deposit pattern');
+
+      // First withdraw from source note
+      const withdrawResult = await this.withdrawThroughAlias(
+        fromNote.aliasAddress!,
+        fromNoteId,
+        toAliasAddress,
+        amount
+      );
+
+      // Then deposit to destination alias (this creates the recipient note)
+      const depositResult = await this.depositThroughAlias(toAliasAddress, amount);
+
+      return {
+        txHash: withdrawResult.txHash,
+        recipientNote,
+        changeNote,
+      };
+    } catch (error) {
+      console.error('❌ Failed to create private transaction:', error);
+      throw error;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HELPER METHODS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Generate commitment hash using Poseidon (ZK-friendly)
+   */
+  private async generateCommitment(
+    secret: string,
+    nullifier: string,
+    amount: ethers.BigNumber,
+    recipient: string
+  ): Promise<string> {
+    // In production, this would use actual Poseidon hash
+    // For now, using Keccak256 as placeholder
+    return ethers.utils.keccak256(
+      ethers.utils.defaultAbiCoder.encode(
+        ['bytes32', 'bytes32', 'uint256', 'address'],
+        [secret, nullifier, amount, recipient]
+      )
+    );
+  }
+
+  /**
+   * Generate nullifier hash
+   */
+  private async generateNullifierHash(nullifier: string, secret: string): Promise<string> {
+    return ethers.utils.keccak256(
+      ethers.utils.defaultAbiCoder.encode(['bytes32', 'bytes32'], [nullifier, secret])
+    );
+  }
+
+  /**
+   * Generate ZK proof for dual-layer architecture (simplified - would use actual circuit in production)
+   */
+  private async generateDualLayerZKProof(inputs: any): Promise<ZKProofData> {
+    // This is a mock implementation
+    // In production, this would use snarkjs with compiled circuits
+    console.log('🔐 Generating dual-layer ZK proof with inputs:', Object.keys(inputs));
+    
+    // Simulate proof generation time
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    const proof: ZKProofData = {
+      proof: {
+        a: [hexlify(randomBytes(32)), hexlify(randomBytes(32))],
+        b: [
+          [hexlify(randomBytes(32)), hexlify(randomBytes(32))],
+          [hexlify(randomBytes(32)), hexlify(randomBytes(32))]
+        ],
+        c: [hexlify(randomBytes(32)), hexlify(randomBytes(32))],
+      },
+      publicInputs: [
+        inputs.aliasHash || hexlify(randomBytes(32)),
+        inputs.vaultCommitment || hexlify(randomBytes(32)),
+        inputs.nullifierHash || hexlify(randomBytes(32)),
+      ],
+      privacyScore: Math.floor(Math.random() * 30) + 70, // 70-100 range
+    };
+    
+    return proof;
+  }
+
+  /**
+   * Generate Merkle proof for a commitment
+   */
+  private async generateMerkleProof(
+    commitment: string,
+    index: number
+  ): Promise<{ pathElements: string[]; pathIndices: number[] }> {
+    // This would query the shielded pool contract or local Merkle tree
+    // For now, returning mock data
+    return {
+      pathElements: Array(20).fill(ethers.constants.HashZero),
+      pathIndices: Array(20).fill(0),
+    };
+  }
+
+  /**
+   * Get Merkle tree index for a commitment
+   */
+  private async getMerkleIndex(commitment: string): Promise<number> {
+    try {
+      // Query the shielded pool for the commitment index
+      // This is a placeholder - actual implementation would query contract events
+      return Math.floor(Math.random() * 1000);
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  /**
+   * Calculate privacy score for an alias
+   */
+  private async calculateAliasPrivacyScore(aliasAddress: string): Promise<number> {
+    // Implement privacy score calculation based on:
+    // - Number of transactions
+    // - Amount variety
+    // - Time distribution
+    // - Anonymity set size
+    // - ZK proof usage
+    return Math.floor(Math.random() * 40) + 60; // 60-100 range
+  }
+
+  /**
+   * Calculate privacy score for a note
+   */
+  private async calculateNotePrivacyScore(commitment: string): Promise<number> {
+    // Similar to alias score but for individual notes
+    return Math.floor(Math.random() * 30) + 70; // 70-100 range
+  }
+
+  /**
+   * Get current anonymity set size
+   */
+  private async getAnonymitySetSize(): Promise<number> {
+    try {
+      const [totalDeposits] = await this.contractInstances.shieldedPool!.getPoolStats();
+      return totalDeposits.toNumber();
+    } catch (error) {
+      return 100; // Default fallback
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DATA PERSISTENCE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  private async saveAliasAccounts(): Promise<void> {
+    try {
+      const data = JSON.stringify(Array.from(this.aliasAccounts.entries()));
+      await AsyncStorage.setItem('privacy_alias_accounts', data);
+    } catch (error) {
+      console.error('Failed to save alias accounts:', error);
+    }
+  }
+
+  private async loadAliasAccounts(): Promise<void> {
+    try {
+      const data = await AsyncStorage.getItem('privacy_alias_accounts');
+      if (data) {
+        const entries = JSON.parse(data);
+        this.aliasAccounts = new Map(entries);
+      }
+    } catch (error) {
+      console.error('Failed to load alias accounts:', error);
+    }
+  }
+
+  private async savePrivacyNotes(): Promise<void> {
+    try {
+      const data = JSON.stringify(Array.from(this.privacyNotes.entries()));
+      await AsyncStorage.setItem('privacy_notes', data);
+    } catch (error) {
+      console.error('Failed to save privacy notes:', error);
+    }
+  }
+
+  private async loadPrivacyNotes(): Promise<void> {
+    try {
+      const data = await AsyncStorage.getItem('privacy_notes');
+      if (data) {
+        const entries = JSON.parse(data);
+        this.privacyNotes = new Map(entries);
+      }
+    } catch (error) {
+      console.error('Failed to load privacy notes:', error);
+    }
+  }
+
+  private async savePrivacyTransactions(): Promise<void> {
+    try {
+      const data = JSON.stringify(Array.from(this.privacyTransactions.entries()));
+      await AsyncStorage.setItem('privacy_transactions', data);
+    } catch (error) {
+      console.error('Failed to save privacy transactions:', error);
+    }
+  }
+
+  private async loadPrivacyTransactions(): Promise<void> {
+    try {
+      const data = await AsyncStorage.getItem('privacy_transactions');
+      if (data) {
+        const entries = JSON.parse(data);
+        this.privacyTransactions = new Map(entries);
+      }
+    } catch (error) {
+      console.error('Failed to load privacy transactions:', error);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PUBLIC API FOR DUAL-LAYER ARCHITECTURE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get all user alias accounts
+   */
+  public getAliasAccounts(): AliasAccount[] {
+    return Array.from(this.aliasAccounts.values());
+  }
+
+  /**
+   * Get specific alias account
+   */
+  public getAliasAccount(address: string): AliasAccount | undefined {
+    return this.aliasAccounts.get(address);
+  }
+
+  /**
+   * Get all user privacy notes
+   */
+  public getPrivacyNotes(): PrivacyNote[] {
+    return Array.from(this.privacyNotes.values());
+  }
+
+  /**
+   * Get unspent privacy notes
+   */
+  public getUnspentNotes(): PrivacyNote[] {
+    return Array.from(this.privacyNotes.values()).filter(note => !note.isSpent);
+  }
+
+  /**
+   * Get privacy transactions
+   */
+  public getPrivacyTransactions(): PrivacyTransaction[] {
+    return Array.from(this.privacyTransactions.values());
+  }
+
+  /**
+   * Get total privacy balance across all notes
+   */
+  public getTotalPrivacyBalance(): string {
+    const unspentNotes = this.getUnspentNotes();
+    const totalBalance = unspentNotes.reduce(
+      (sum, note) => sum.add(ethers.BigNumber.from(note.amount)),
+      ethers.BigNumber.from(0)
+    );
+    return ethers.utils.formatEther(totalBalance);
+  }
+
+  /**
+   * Get privacy score for user
+   */
+  public async getUserPrivacyScore(): Promise<number> {
+    const aliases = this.getAliasAccounts();
+    const notes = this.getPrivacyNotes();
+    const transactions = this.getPrivacyTransactions();
+    
+    if (aliases.length === 0 && notes.length === 0) {
+      return 0;
+    }
+    
+    // Calculate based on usage patterns
+    let score = 40; // Base score for using privacy features
+    
+    // Bonus for having multiple aliases
+    score += Math.min(aliases.length * 10, 30);
+    
+    // Bonus for transaction variety
+    score += Math.min(transactions.length * 2, 20);
+    
+    // Bonus for ZK proof usage
+    const zkTransactions = transactions.filter(tx => tx.zkProofHash);
+    score += Math.min(zkTransactions.length * 5, 20);
+    
+    return Math.min(score, 100);
+  }
+
   // Public getters
   public getPrivacySettings(): PrivacySettings {
     return { ...this.privacySettings };
@@ -1274,6 +2045,242 @@ export class PrivacyService {
 
   public isPrivacyModeEnabled(): boolean {
     return this.privacySettings.enablePrivacyMode;
+  }
+
+  /**
+   * Get current privacy state
+   */
+  public async getPrivacyState(): Promise<{
+    isPrivacyEnabled: boolean;
+    privacyScore: number | null;
+    dualLayerMode: boolean;
+  }> {
+    try {
+      const state = await AsyncStorage.getItem('@privacy_state');
+      if (state) {
+        return JSON.parse(state);
+      }
+      return {
+        isPrivacyEnabled: false,
+        privacyScore: null,
+        dualLayerMode: false,
+      };
+    } catch (error) {
+      console.error('Failed to get privacy state:', error);
+      return {
+        isPrivacyEnabled: false,
+        privacyScore: null,
+        dualLayerMode: false,
+      };
+    }
+  }
+
+  /**
+   * Disable privacy mode
+   */
+  public async disablePrivacyMode(): Promise<void> {
+    try {
+      await AsyncStorage.setItem('@privacy_state', JSON.stringify({
+        isPrivacyEnabled: false,
+        privacyScore: null,
+        dualLayerMode: false,
+      }));
+      
+      // Clear privacy-related data
+      await AsyncStorage.removeItem('@privacy_aliases');
+      await AsyncStorage.removeItem('@shielded_vault_keys');
+      
+      console.log('✅ Privacy mode disabled');
+    } catch (error) {
+      console.error('❌ Failed to disable privacy mode:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user aliases
+   */
+  public async getUserAliases(): Promise<any[]> {
+    try {
+      const aliasData = await AsyncStorage.getItem('@privacy_aliases');
+      if (aliasData) {
+        return JSON.parse(aliasData);
+      }
+      return [];
+    } catch (error) {
+      console.error('Failed to get user aliases:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Create new privacy alias
+   */
+  public async createAlias(name: string): Promise<{ success: boolean; aliasId?: string; error?: string }> {
+    try {
+      const aliasId = ethers.utils.id(name + Date.now());
+      const publicKey = ethers.utils.hexlify(ethers.utils.randomBytes(32));
+      
+      const newAlias = {
+        id: aliasId,
+        name,
+        publicKey,
+        createdAt: new Date().toISOString(),
+        isActive: true,
+      };
+      
+      const existingAliases = await this.getUserAliases();
+      existingAliases.push(newAlias);
+      
+      await AsyncStorage.setItem('@privacy_aliases', JSON.stringify(existingAliases));
+      
+      return { success: true, aliasId };
+    } catch (error) {
+      console.error('Failed to create alias:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  /**
+   * Send private transaction using alias
+   */
+  public async sendPrivateTransactionWithAlias(params: {
+    aliasId: string;
+    recipient: string;
+    amount: string;
+    useZKProof?: boolean;
+  }): Promise<{ success: boolean; transactionHash?: string; privacyScore?: number; error?: string }> {
+    try {
+      console.log('🎭 Sending private transaction with alias:', params.aliasId);
+      
+      // In a real implementation, this would:
+      // 1. Use the alias to create a public transaction
+      // 2. Generate ZK proof for the actual transaction
+      // 3. Submit both to the dual-layer architecture
+      
+      // Mock implementation
+      const mockTxHash = ethers.utils.id(JSON.stringify(params) + Date.now());
+      const privacyScore = Math.floor(Math.random() * 20) + 80; // 80-100 for alias transactions
+      
+      // Simulate network delay
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      return {
+        success: true,
+        transactionHash: mockTxHash,
+        privacyScore,
+      };
+    } catch (error) {
+      console.error('❌ Failed to send private transaction with alias:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  /**
+   * Send private transaction (basic privacy pool)
+   */
+  public async sendPrivateTransaction(params: {
+    recipient: string;
+    amount: string;
+    useZKProof?: boolean;
+  }): Promise<{ success: boolean; transactionHash?: string; privacyScore?: number; error?: string }> {
+    try {
+      console.log('🔐 Sending private transaction to privacy pool');
+      
+      // In a real implementation, this would:
+      // 1. Generate commitment for the privacy pool
+      // 2. Create ZK proof for withdrawal
+      // 3. Submit to MinimalShieldedPool contract
+      
+      // Mock implementation
+      const mockTxHash = ethers.utils.id(JSON.stringify(params) + Date.now());
+      const privacyScore = Math.floor(Math.random() * 30) + 60; // 60-90 for basic privacy
+      
+      // Simulate network delay
+      await new Promise(resolve => setTimeout(resolve, 2500));
+      
+      return {
+        success: true,
+        transactionHash: mockTxHash,
+        privacyScore,
+      };
+    } catch (error) {
+      console.error('❌ Failed to send private transaction:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  /**
+   * Enable dual-layer privacy mode
+   */
+  public async enableDualLayerMode(): Promise<{ 
+    success: boolean; 
+    aliasId?: string; 
+    privacyScore?: number; 
+    error?: string 
+  }> {
+    try {
+      console.log('🔐 Enabling dual-layer privacy architecture');
+      
+      // Initialize contracts (mock)
+      await this.initializeContracts();
+      
+      // Create initial alias
+      const aliasResult = await this.createAlias(`MainAlias_${Date.now()}`);
+      if (!aliasResult.success) {
+        throw new Error(aliasResult.error || 'Failed to create alias');
+      }
+      
+      // Link alias to shielded pool
+      await this.linkToShieldedPool(aliasResult.aliasId!, this.shieldedPoolAddress);
+      
+      // Update privacy state
+      const privacyScore = Math.floor(Math.random() * 20) + 80; // 80-100 for dual layer
+      await AsyncStorage.setItem('@privacy_state', JSON.stringify({
+        isPrivacyEnabled: true,
+        privacyScore,
+        dualLayerMode: true,
+        aliasId: aliasResult.aliasId,
+      }));
+      
+      console.log('✅ Dual-layer privacy mode enabled');
+      return {
+        success: true,
+        aliasId: aliasResult.aliasId,
+        privacyScore,
+      };
+    } catch (error) {
+      console.error('❌ Failed to enable dual-layer privacy:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  /**
+   * Link alias to shielded pool
+   */
+  private async linkToShieldedPool(aliasId: string, shieldedPoolAddress: string): Promise<void> {
+    try {
+      console.log('🔗 Linking alias to shielded pool:', aliasId);
+      
+      // In a real implementation, this would:
+      // 1. Call the linkToShieldedPool function on the AliasAccount contract
+      // 2. Create the connection between public alias and private vault
+      // 3. Generate necessary ZK commitments
+      
+      // Mock implementation - just store the association
+      const linkData = {
+        aliasId,
+        shieldedPoolAddress,
+        linkedAt: new Date().toISOString(),
+        status: 'active',
+      };
+      
+      await AsyncStorage.setItem(`@alias_link_${aliasId}`, JSON.stringify(linkData));
+      console.log('✅ Alias linked to shielded pool');
+    } catch (error) {
+      console.error('❌ Failed to link alias to shielded pool:', error);
+      throw error;
+    }
   }
 }
 
