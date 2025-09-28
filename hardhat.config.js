@@ -1,37 +1,7 @@
-// Use try-catch to handle missing dependencies gracefully
-try {
-  require("@nomiclabs/hardhat-waffle");
-} catch (e) {
-  console.warn("hardhat-waffle not found, skipping...");
-}
+require("@nomiclabs/hardhat-ethers");
+require("@nomiclabs/hardhat-waffle");
 
-try {
-  require("@nomiclabs/hardhat-ethers");
-} catch (e) {
-  console.warn("hardhat-ethers not found, skipping...");
-}
-
-try {
-  require("@nomiclabs/hardhat-etherscan");
-} catch (e) {
-  console.warn("hardhat-etherscan not found, skipping...");
-}
-
-try {
-  require("hardhat-gas-reporter");
-} catch (e) {
-  console.warn("hardhat-gas-reporter not found, skipping...");
-}
-
-try {
-  require("solidity-coverage");
-} catch (e) {
-  console.warn("solidity-coverage not found, skipping...");
-}
-
-/**
- * @type import('hardhat/config').HardhatUserConfig
- */
+/** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   solidity: {
     version: "0.8.20",
@@ -40,6 +10,7 @@ module.exports = {
         enabled: true,
         runs: 200,
       },
+      viaIR: true,
     },
   },
   networks: {
@@ -71,45 +42,6 @@ module.exports = {
       chainId: 80001,
       gasPrice: 20000000000, // 20 gwei
     },
-    
-    // Mainnets
-    mainnet: {
-      url: process.env.MAINNET_RPC_URL || "https://mainnet.infura.io/v3/YOUR_API_KEY",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 1,
-      gasPrice: 20000000000, // 20 gwei
-    },
-    polygon: {
-      url: process.env.POLYGON_RPC_URL || "https://polygon-rpc.com/",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 137,
-      gasPrice: 20000000000, // 20 gwei
-    },
-    bsc: {
-      url: process.env.BSC_RPC_URL || "https://bsc-dataseed.binance.org/",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 56,
-      gasPrice: 20000000000, // 20 gwei
-    },
-  },
-  
-  // Etherscan verification
-  etherscan: {
-    apiKey: {
-      mainnet: process.env.ETHERSCAN_API_KEY,
-      goerli: process.env.ETHERSCAN_API_KEY,
-      sepolia: process.env.ETHERSCAN_API_KEY,
-      polygon: process.env.POLYGONSCAN_API_KEY,
-      polygonMumbai: process.env.POLYGONSCAN_API_KEY,
-      bsc: process.env.BSCSCAN_API_KEY,
-    }
-  },
-  
-  // Gas reporter
-  gasReporter: {
-    enabled: process.env.REPORT_GAS !== undefined,
-    currency: "USD",
-    coinmarketcap: process.env.COINMARKETCAP_API_KEY,
   },
   
   // Paths
@@ -119,7 +51,6 @@ module.exports = {
     cache: "./cache",
     artifacts: "./artifacts",
   },
-
   
   // Mocha timeout
   mocha: {

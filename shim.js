@@ -3,45 +3,122 @@
  * Essential polyfills for crypto operations and web3 compatibility
  */
 
-// Crypto polyfill - MUST be first
-import 'react-native-get-random-values';
+console.log('🔧 Starting CYPHER polyfills...');
 
-// Buffer polyfill
-import { Buffer } from 'buffer';
-global.Buffer = global.Buffer || Buffer;
+try {
+  // Crypto polyfill - MUST be first
+  require('react-native-get-random-values');
+  console.log('✅ react-native-get-random-values loaded');
+} catch (error) {
+  console.error('❌ Failed to load react-native-get-random-values:', error);
+}
 
-// Process polyfill
-import process from 'process';
-global.process = global.process || process;
+try {
+  // Buffer polyfill
+  const { Buffer } = require('buffer');
+  global.Buffer = global.Buffer || Buffer;
+  console.log('✅ Buffer polyfill loaded');
+} catch (error) {
+  console.error('❌ Failed to load Buffer polyfill:', error);
+}
 
-// Stream polyfill
-import { Readable } from 'readable-stream';
-global.stream = global.stream || { Readable };
+try {
+  // Process polyfill
+  const process = require('process');
+  global.process = global.process || process;
+  console.log('✅ Process polyfill loaded');
+} catch (error) {
+  console.error('❌ Failed to load process polyfill:', error);
+}
 
-// URL polyfill for React Native
-global.URL = global.URL || require('whatwg-url').URL;
+try {
+  // Stream polyfill
+  const { Readable } = require('readable-stream');
+  global.stream = global.stream || { Readable };
+  console.log('✅ Stream polyfill loaded');
+} catch (error) {
+  console.error('❌ Failed to load readable-stream polyfill:', error);
+}
 
-// TextEncoder/TextDecoder polyfills
+try {
+  // URL polyfill for React Native
+  const { URL } = require('whatwg-url');
+  global.URL = global.URL || URL;
+  console.log('✅ URL polyfill loaded');
+} catch (error) {
+  // Fallback if whatwg-url is not available
+  console.warn('⚠️ whatwg-url not available, URL polyfill skipped');
+}
+
+// TextEncoder/TextDecoder polyfills - Multiple fallback strategies
 if (typeof global.TextEncoder === 'undefined') {
+  console.log('🔧 Adding TextEncoder/TextDecoder polyfills...');
+  
   try {
-    const { TextEncoder, TextDecoder } = require('text-encoding');
-    global.TextEncoder = TextEncoder;
-    global.TextDecoder = TextDecoder;
+    // Try text-encoding-polyfill first
+    const textEncodingPolyfill = require('text-encoding-polyfill');
+    if (textEncodingPolyfill.TextEncoder) {
+      global.TextEncoder = textEncodingPolyfill.TextEncoder;
+      global.TextDecoder = textEncodingPolyfill.TextDecoder;
+      console.log('✅ Using text-encoding-polyfill for TextEncoder/TextDecoder');
+    } else {
+      throw new Error('text-encoding-polyfill not available');
+    }
   } catch (error) {
-    // Fallback implementation for TextEncoder/TextDecoder
-    global.TextEncoder = class {
-      encode(input) {
-        return Buffer.from(input, 'utf8');
-      }
-    };
-    
-    global.TextDecoder = class {
-      decode(input) {
-        return Buffer.from(input).toString('utf8');
-      }
-    };
-    console.warn('Using fallback TextEncoder/TextDecoder implementation');
+    try {
+      // Fallback to text-encoding
+      const { TextEncoder, TextDecoder } = require('text-encoding');
+      global.TextEncoder = TextEncoder;
+      global.TextDecoder = TextDecoder;
+      console.log('✅ Using text-encoding for TextEncoder/TextDecoder');
+    } catch (error2) {
+      // Ultimate fallback - basic implementation
+      global.TextEncoder = class TextEncoder {
+        constructor(encoding = 'utf-8') {
+          this.encoding = encoding;
+        }
+        
+        encode(input = '') {
+          if (typeof input !== 'string') {
+            input = String(input);
+          }
+          return Buffer.from(input, 'utf8');
+        }
+      };
+      
+      global.TextDecoder = class TextDecoder {
+        constructor(encoding = 'utf-8', options = {}) {
+          this.encoding = encoding;
+          this.fatal = options.fatal || false;
+        }
+        
+        decode(input, options = {}) {
+          if (!input) return '';
+          const stream = options.stream || false;
+          
+          try {
+            if (input instanceof ArrayBuffer) {
+              return Buffer.from(input).toString('utf8');
+            } else if (input instanceof Uint8Array) {
+              return Buffer.from(input).toString('utf8');
+            } else if (Buffer.isBuffer(input)) {
+              return input.toString('utf8');
+            }
+            return String(input);
+          } catch (error) {
+            if (this.fatal) {
+              throw new TypeError('Invalid character in decode operation');
+            }
+            return '';
+          }
+        }
+      };
+      
+      console.warn('⚠️ Using fallback TextEncoder/TextDecoder implementation');
+    }
   }
+} else {
+  console.log('✅ TextEncoder/TextDecoder already available');
 }
 
 // Base64 encoding/decoding polyfills

@@ -12,13 +12,16 @@ import {
   TextInput,
   ScrollView,
   Dimensions,
+  Switch,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import QRCode from 'react-native-qrcode-svg';
 import Button from '../../components/Button';
 // import { QuickIcon } from '../../components/AppIcon'; // Temporarily disabled
 import { useWallet } from '../../context/WalletContext';
+import { usePrivacyWallet } from '../../context/PrivacyWalletContext';
 import { useTheme } from '../../context/ThemeContext';
+import NetworkDebug from '../../components/NetworkDebug';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -28,14 +31,18 @@ interface ReceiveScreenProps {
 
 const ReceiveScreen: React.FC<ReceiveScreenProps> = ({ onNavigate }) => {
   const { state } = useWallet();
+  const { state: privacyState, togglePrivateMode, createAlias } = usePrivacyWallet();
   const { colors } = useTheme();
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(false);        
   const [qrSize, setQrSize] = useState(200);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showPrivacyOptions, setShowPrivacyOptions] = useState(false);
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
   const [qrData, setQrData] = useState('');
   const [qrRef, setQrRef] = useState<any>(null);
+  const [usePrivateMode, setUsePrivateMode] = useState(privacyState.isPrivateMode);
+  const [isGeneratingAlias, setIsGeneratingAlias] = useState(false);
 
   useEffect(() => {
     // Calculate optimal QR code size based on screen width
@@ -46,10 +53,19 @@ const ReceiveScreen: React.FC<ReceiveScreenProps> = ({ onNavigate }) => {
     generateQRData();
   }, [state.activeAccount?.address, amount, memo]);
 
-  const generateQRData = () => {
+  const generateQRData = async () => {
     if (!state.activeAccount?.address) return;
 
     let data = state.activeAccount.address;
+
+    // If using private mode, generate a commitment-based address
+    if (usePrivateMode && privacyState.aliases.length > 0) {
+      // Use the first available alias for privacy
+      data = privacyState.aliases[0];
+    } else if (usePrivateMode) {
+      // Show privacy address placeholder
+      data = 'cypher://private-receive?commitment=pending';
+    }
 
     // If amount or memo is specified, create EIP-681 payment URI
     if (amount || memo) {
@@ -62,8 +78,12 @@ const ReceiveScreen: React.FC<ReceiveScreenProps> = ({ onNavigate }) => {
       if (memo) {
         params.append('message', memo);
       }
+      if (usePrivateMode) {
+        params.append('privacy', 'true');
+      }
       
-      data = `ethereum:${state.activeAccount.address}?${params.toString()}`;
+      const protocol = usePrivateMode ? 'cypher' : 'ethereum';
+      data = `${protocol}:${data}?${params.toString()}`;
     }
 
     setQrData(data);
@@ -106,6 +126,28 @@ const ReceiveScreen: React.FC<ReceiveScreenProps> = ({ onNavigate }) => {
     onNavigate('QRScanner');
   };
 
+  const handleCreateAlias = async () => {
+    try {
+      setIsGeneratingAlias(true);
+      const aliasAddress = await createAlias(`Receive alias for ${state.activeAccount?.address}`);
+      Alert.alert(
+        'Privacy Alias Created',
+        `New privacy alias created: ${aliasAddress.slice(0, 10)}...${aliasAddress.slice(-8)}`,
+        [{ text: 'OK', onPress: generateQRData }]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create privacy alias. Please try again.');
+      console.error('Failed to create alias:', error);
+    } finally {
+      setIsGeneratingAlias(false);
+    }
+  };
+
+  const togglePrivacyMode = () => {
+    setUsePrivateMode(!usePrivateMode);
+    generateQRData();
+  };
+
   const styles = createStyles(colors);
   
   return (
@@ -120,7 +162,21 @@ const ReceiveScreen: React.FC<ReceiveScreenProps> = ({ onNavigate }) => {
           >
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Receive {state.currentNetwork.symbol}</Text>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>Receive {state.currentNetwork.symbol}</Text>
+            <View style={styles.privacyModeContainer}>
+              <Text style={styles.privacyModeLabel}>
+                {usePrivateMode ? '🔒 Private' : '🌐 Public'}
+              </Text>
+              <Switch
+                value={usePrivateMode}
+                onValueChange={togglePrivacyMode}
+                trackColor={{ false: colors.border, true: colors.success }}
+                thumbColor={usePrivateMode ? colors.textPrimary : colors.textSecondary}
+                style={styles.privacySwitch}
+              />
+            </View>
+          </View>
           <TouchableOpacity 
             style={styles.scanButton}
             onPress={openQRScanner}
@@ -135,11 +191,30 @@ const ReceiveScreen: React.FC<ReceiveScreenProps> = ({ onNavigate }) => {
         <View style={styles.qrCard}>
           <Text style={styles.cardTitle}>QR Code</Text>
           <Text style={styles.cardSubtitle}>
-            Scan this code to send {state.currentNetwork.symbol} to your wallet
+            {usePrivateMode ? 
+              'Scan this code to send private payments to your shielded address' : 
+              `Scan this code to send ${state.currentNetwork.symbol} to your wallet`
+            }
           </Text>
           
           <View style={styles.qrContainer}>
-            {state.activeAccount?.address && (
+            {usePrivateMode && privacyState.aliases.length === 0 ? (
+              <View style={styles.privacyPlaceholder}>
+                <Text style={styles.privacyPlaceholderIcon}>🔒</Text>
+                <Text style={styles.privacyPlaceholderText}>
+                  Create a privacy alias to receive anonymous payments
+                </Text>
+                <TouchableOpacity 
+                  style={styles.createAliasButton}
+                  onPress={handleCreateAlias}
+                  disabled={isGeneratingAlias}
+                >
+                  <Text style={styles.createAliasButtonText}>
+                    {isGeneratingAlias ? 'Creating...' : 'Create Privacy Alias'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : state.activeAccount?.address && (
               <QRCode
                 value={qrData || state.activeAccount.address}
                 size={qrSize}
@@ -242,6 +317,31 @@ const ReceiveScreen: React.FC<ReceiveScreenProps> = ({ onNavigate }) => {
           </TouchableOpacity>
         </View>
 
+        {/* Privacy Information */}
+        {usePrivateMode && (
+          <View style={styles.privacyInfoCard}>
+            <View style={styles.privacyInfoHeader}>
+              <Text style={styles.privacyInfoIcon}>🔒</Text>
+              <Text style={styles.privacyInfoTitle}>Privacy Mode Active</Text>
+            </View>
+            <Text style={styles.privacyInfoText}>
+              • Payments to this address will be shielded using zero-knowledge proofs
+            </Text>
+            <Text style={styles.privacyInfoText}>
+              • Transaction amounts and sender details are hidden on the blockchain
+            </Text>
+            <Text style={styles.privacyInfoText}>
+              • Only you can view the true balance and transaction history
+            </Text>
+            {privacyState.aliases.length > 0 && (
+              <View style={styles.aliasInfo}>
+                <Text style={styles.aliasInfoTitle}>Active Privacy Aliases: {privacyState.aliases.length}</Text>
+                <Text style={styles.aliasInfoText}>Privacy Score: {privacyState.privacySettings.privacyScore}/100</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Security Warning */}
         <View style={styles.warningCard}>
           <View style={styles.warningTitleContainer}>
@@ -258,6 +358,9 @@ const ReceiveScreen: React.FC<ReceiveScreenProps> = ({ onNavigate }) => {
             • Keep your recovery phrase secure and private
           </Text>
         </View>
+
+        {/* Network Debug Info */}
+        <NetworkDebug />
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -298,6 +401,28 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: 'bold',
     color: colors.textPrimary,
     textAlign: 'center',
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  privacyModeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  privacyModeLabel: {
+    fontSize: 12,
+    color: colors.textPrimary,
+    marginRight: 8,
+    fontWeight: '600',
+  },
+  privacySwitch: {
+    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
   },
   scanButton: {
     width: 40,
@@ -352,6 +477,85 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 14,
     fontWeight: '600',
+  },
+  privacyPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+  },
+  privacyPlaceholderIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  privacyPlaceholderText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  createAliasButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  createAliasButtonText: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  privacyInfoCard: {
+    backgroundColor: colors.success + '20',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.success + '40',
+  },
+  privacyInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  privacyInfoIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  privacyInfoTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.success,
+  },
+  privacyInfoText: {
+    fontSize: 14,
+    color: colors.success,
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  aliasInfo: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  aliasInfoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  aliasInfoText: {
+    fontSize: 12,
+    color: colors.textSecondary,
   },
   advancedCard: {
     backgroundColor: colors.surface,

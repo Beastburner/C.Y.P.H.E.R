@@ -30,6 +30,35 @@ export interface NetworkConfig {
 }
 
 export const SUPPORTED_NETWORKS: NetworkConfig[] = [
+  // Localhost/Hardhat (Development)
+  {
+    id: 'localhost',
+    name: 'Hardhat Local Network',
+    displayName: 'Localhost',
+    rpcUrl: 'http://127.0.0.1:8545',
+    chainId: 1337,
+    symbol: 'ETH',
+    decimals: 18,
+    blockExplorerUrl: 'http://localhost:8545', // No explorer for local
+    isTestnet: true,
+    isActive: true,
+    icon: '🔧',
+    color: '#FFA500',
+    features: ['defi', 'nft', 'testnet', 'development'],
+    nativeCurrency: {
+      name: 'Ethereum',
+      symbol: 'ETH',
+      decimals: 18
+    },
+    rpcUrls: [
+      'http://127.0.0.1:8545',
+      'http://localhost:8545'
+    ],
+    blockExplorerUrls: ['http://localhost:8545'],
+    bridgeSupport: [],
+    defiProtocols: []
+  },
+
   // Ethereum Sepolia Testnet (Primary for development)
   {
     id: 'sepolia',
@@ -355,7 +384,7 @@ export const SUPPORTED_NETWORKS: NetworkConfig[] = [
 ];
 
 // Default network configuration
-export const DEFAULT_NETWORK = SUPPORTED_NETWORKS[0]; // Sepolia Testnet
+export const DEFAULT_NETWORK = SUPPORTED_NETWORKS[0]; // Localhost for hackathon development
 
 // Network by chainId lookup
 export const NETWORKS_BY_CHAIN_ID = SUPPORTED_NETWORKS.reduce((acc, network) => {
@@ -400,7 +429,7 @@ export const BRIDGE_NETWORKS = SUPPORTED_NETWORKS.filter(network =>
 );
 
 // Helper functions for compatibility
-export const getDefaultNetwork = () => SUPPORTED_NETWORKS[0]; // Returns Ethereum mainnet
+export const getDefaultNetwork = () => SUPPORTED_NETWORKS[1]; // Returns Sepolia testnet for development
 export const getNetworkByChainId = (chainId: number) => 
   SUPPORTED_NETWORKS.find(network => network.chainId === chainId);
 export const getNetworkById = (id: string) => 

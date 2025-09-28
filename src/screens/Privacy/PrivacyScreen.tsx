@@ -18,10 +18,12 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { ethers } from 'ethers';
 import ShieldedPoolService, { ShieldedNote, DepositParams, WithdrawParams } from '../../services/shieldedPoolService';
+import { getShieldedPoolAddress, hasContractsDeployed, isLocalNetwork, getNetworkDeployment } from '../../config/contracts';
 import { useWallet } from '../../context/WalletContext';
 import { ModernColors, ModernSpacing, ModernBorderRadius, ModernShadows } from '../../styles/ModernTheme';
 import { useTheme } from '../../context/ThemeContext';
 import { CypherHeaderLogo } from '../../components/CypherLogo';
+import ENSStealthDemo from '../../components/ENSStealthDemo';
 
 /**
  * @title PrivacyScreen
@@ -51,12 +53,36 @@ interface PrivacySettings {
 
 const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavigate }) => {
   // Wallet context and theme
-  const { state, getBalance, getTransactions } = useWallet();
+  const { state, getBalance, getTransactions, ensureWalletInitialized } = useWallet();
   const { colors, typography, spacing, createCardStyle, createButtonStyle, gradients } = useTheme();
   const { width, height } = Dimensions.get('window');
   
+  // Debug wallet state on component mount and updates
+  useEffect(() => {
+    console.log('🔍 PrivacyScreen - Wallet State Debug:', {
+      isInitialized: state.isInitialized,
+      isUnlocked: state.isUnlocked,
+      currentAccount: state.currentAccount?.address,
+      activeAccount: state.activeAccount?.address,
+      hasPrivateKey: !!state.currentAccount?.privateKey,
+      accounts: state.accounts?.length || 0,
+      currentNetwork: state.currentNetwork?.name,
+    });
+  }, [state.isInitialized, state.isUnlocked, state.currentAccount, state.activeAccount]);
+
+  // Debug function to manually refresh wallet state
+  const debugRefreshWallet = async () => {
+    console.log('🔄 Manual wallet state refresh requested');
+    try {
+      await ensureWalletInitialized();
+      console.log('✅ Wallet refresh completed');
+    } catch (error) {
+      console.error('❌ Wallet refresh failed:', error);
+    }
+  };
+  
   // State management
-  const [activeTab, setActiveTab] = useState<'balance' | 'transactions' | 'settings'>('balance');
+  const [activeTab, setActiveTab] = useState<'balance' | 'transactions' | 'settings' | 'ens'>('balance');
   const [shieldedNotes, setShieldedNotes] = useState<ShieldedNote[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -107,42 +133,92 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
       if (!state.currentNetwork?.rpcUrl) return;
       
       const provider = new ethers.providers.JsonRpcProvider(state.currentNetwork.rpcUrl);
+      const chainId = state.currentNetwork.chainId;
       
-      // Get real deployed contract address from environment or deployment
-      let contractAddress = process.env.SHIELDED_POOL_CONTRACT;
-      if (!contractAddress && state.currentNetwork.name.includes('Sepolia')) {
-        // For demo: use a placeholder that would be replaced with actual deployed address
-        contractAddress = '0x0000000000000000000000000000000000000000'; // Replace with actual deployed address
+      console.log('🔧 Initializing shielded service for network:', state.currentNetwork.name);
+      console.log('🌐 Chain ID:', chainId);
+      
+      // Get deployed contract address for current network
+      const contractAddress = getShieldedPoolAddress(chainId);
+      const deploymentInfo = getNetworkDeployment(chainId);
+      
+      console.log('� Network deployment info:', deploymentInfo);
+      console.log('📍 Contract address:', contractAddress);
+      
+      // Check if contracts are deployed on this network
+      if (!hasContractsDeployed(chainId)) {
+        console.log('⚠️ No contracts deployed on', state.currentNetwork.name);
+        console.log('ℹ️ To enable privacy features:');
+        
+        if (isLocalNetwork(chainId)) {
+          console.log('  1. Start local Hardhat node: npx hardhat node');
+          console.log('  2. Deploy contracts: npm run deploy:local');
+        } else {
+          console.log(`  1. Deploy contracts to ${state.currentNetwork.name}`);
+          console.log(`  2. Update contract addresses in src/config/contracts.ts`);
+        }
+        
+        // Create mock service for development
+        const mockService = createMockService();
+        setShieldedService(mockService);
+        setMockDataForDevelopment();
+        return;
       }
       
-      if (contractAddress && contractAddress !== '0x0000000000000000000000000000000000000000') {
+      // Initialize real service with deployed contract
+      if (contractAddress) {
+        console.log('✅ Initializing shielded service with contract:', contractAddress);
+        
         const service = new ShieldedPoolService(provider, contractAddress);
         setShieldedService(service);
         
         await loadShieldedData(service);
+        console.log('🎉 Shielded service initialized successfully');
       } else {
-        // For demo purposes, show empty state instead of mock data
-        setPoolStats({
-          totalDeposits: '0',
-          totalWithdrawals: '0',
-          activeCommitments: '0',
-          poolBalance: '0'
-        });
-        setShieldedBalance('0');
-        setShieldedNotes([]);
+        console.error('❌ Contract address not found for network:', state.currentNetwork.name);
+        const mockService = createMockService();
+        setShieldedService(mockService);
+        setMockDataForDevelopment();
       }
-    } catch (error) {
-      console.error('Failed to initialize shielded service:', error);
-      // Set empty state on error instead of mock data
-      setPoolStats({
+      
+    } catch (error: any) {
+      console.error('❌ Failed to initialize shielded service:', error);
+      console.error('Error details:', error?.message || 'Unknown error');
+      
+      // Fallback to mock service
+      const mockService = createMockService();
+      setShieldedService(mockService);
+      setMockDataForDevelopment();
+    }
+  };
+
+  const createMockService = () => {
+    return {
+      getShieldedBalance: async () => '0',
+      getAllNotes: async () => [],
+      getPoolStats: async () => ({
         totalDeposits: '0',
-        totalWithdrawals: '0',
+        totalWithdrawals: '0', 
         activeCommitments: '0',
         poolBalance: '0'
-      });
-      setShieldedBalance('0');
-      setShieldedNotes([]);
-    }
+      }),
+      depositETH: async () => ({ note: null, txHash: 'mock-tx' }),
+      withdraw: async () => 'mock-tx',
+      syncNotes: async () => {},
+      isConfigured: async () => false
+    } as any;
+  };
+
+  const setMockDataForDevelopment = () => {
+    setPoolStats({
+      totalDeposits: '0.0000',
+      totalWithdrawals: '0.0000',
+      activeCommitments: '0',
+      poolBalance: '0.0000'
+    });
+    setShieldedBalance('0');
+    setShieldedNotes([]);
+    console.log('Mock shielded service initialized for development');
   };
 
   const loadShieldedData = async (service?: ShieldedPoolService) => {
@@ -194,8 +270,25 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
   // Privacy operations
   const handleDeposit = async () => {
     try {
-      if (!shieldedService || !state.activeAccount) {
-        Alert.alert('Error', 'Wallet not connected');
+      console.log('💰 handleDeposit called - Wallet state:', {
+        isUnlocked: state.isUnlocked,
+        isInitialized: state.isInitialized,
+        hasCurrentAccount: !!state.currentAccount,
+        currentAccountAddress: state.currentAccount?.address,
+        hasPrivateKey: !!state.currentAccount?.privateKey,
+        hasShieldedService: !!shieldedService,
+        currentNetworkRPC: state.currentNetwork?.rpcUrl
+      });
+
+      if (!shieldedService) {
+        console.error('❌ Shielded service is not initialized');
+        Alert.alert('Error', 'Shielded service not initialized. Please check your network connection and try again.');
+        return;
+      }
+      
+      if (!state.currentAccount) {
+        console.error('❌ Wallet not connected - currentAccount is missing');
+        Alert.alert('Error', 'Wallet not connected. Please connect your wallet first.');
         return;
       }
 
@@ -208,10 +301,10 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
 
       // Create signer
       const provider = new ethers.providers.JsonRpcProvider(state.currentNetwork?.rpcUrl);
-      if (!state.activeAccount?.privateKey) {
+      if (!state.currentAccount?.privateKey) {
         throw new Error('No private key available');
       }
-      const wallet = new ethers.Wallet(state.activeAccount.privateKey, provider);
+      const wallet = new ethers.Wallet(state.currentAccount.privateKey, provider);
 
       const params: DepositParams = {
         amount: ethers.utils.parseEther(amount).toString()
@@ -242,7 +335,7 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
 
   const handleWithdraw = async () => {
     try {
-      if (!shieldedService || !state.activeAccount) {
+      if (!shieldedService || !state.currentAccount) {
         Alert.alert('Error', 'Wallet not connected');
         return;
       }
@@ -268,10 +361,10 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
 
       // Create signer
       const provider = new ethers.providers.JsonRpcProvider(state.currentNetwork?.rpcUrl);
-      if (!state.activeAccount?.privateKey) {
+      if (!state.currentAccount?.privateKey) {
         throw new Error('No private key available');
       }
-      const wallet = new ethers.Wallet(state.activeAccount.privateKey, provider);
+      const wallet = new ethers.Wallet(state.currentAccount.privateKey, provider);
 
       const params: WithdrawParams = {
         recipient: recipient,
@@ -366,6 +459,26 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
           <Icon name="security" size={24} color="#FFF" />
           <Text style={[styles.balanceTitle, { color: '#FFF' }]}>Shielded Balance</Text>
         </View>
+        
+        {/* Wallet Status Indicator */}
+        <View style={styles.walletStatus}>
+          <Text style={[styles.walletStatusText, { 
+            color: (state.isUnlocked && state.currentAccount) ? '#90EE90' : '#FFB6C1' 
+          }]}>
+            {state.isUnlocked && state.currentAccount ? 
+              `🔓 Connected: ${state.currentAccount.address?.slice(0, 6)}...${state.currentAccount.address?.slice(-4)}` : 
+              `🔒 Not Connected (Init: ${state.isInitialized}, Unlock: ${state.isUnlocked}, Account: ${!!state.currentAccount})`}
+          </Text>
+          {!(state.isUnlocked && state.currentAccount) && (
+            <TouchableOpacity 
+              style={styles.debugButton}
+              onPress={debugRefreshWallet}
+            >
+              <Text style={styles.debugButtonText}>🔄 Refresh Wallet</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        
         <Text style={[styles.balanceAmount, { color: '#FFF' }]}>{totalShieldedBalance} ETH</Text>
         <Text style={[styles.balanceSubtext, { color: 'rgba(255, 255, 255, 0.8)' }]}>
           {unspentCommitments.length} active note{unspentCommitments.length !== 1 ? 's' : ''}
@@ -706,6 +819,43 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
     </ScrollView>
   );
 
+  const renderENSTab = () => {
+    // Create provider for ENS stealth service
+    const provider = state.currentNetwork?.rpcUrl 
+      ? new ethers.providers.JsonRpcProvider(state.currentNetwork.rpcUrl)
+      : undefined;
+
+    return (
+      <ScrollView style={[styles.tabContent, { backgroundColor: colors.background }]}>
+        <ENSStealthDemo provider={provider} />
+        
+        {/* Full ENS Privacy Demo Button */}
+        <View style={styles.demoButtonContainer}>
+          <TouchableOpacity
+            style={[styles.demoButton, { borderColor: ModernColors.accent }]}
+            onPress={() => onNavigate && onNavigate('ensPrivacy')}
+          >
+            <LinearGradient
+              colors={ModernColors.accentGradient}
+              style={styles.demoButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Icon name="public" size={24} color="#FFFFFF" style={styles.demoButtonIcon} />
+              <View style={styles.demoButtonTextContainer}>
+                <Text style={styles.demoButtonTitle}>🎭 Full ENS Privacy Demo</Text>
+                <Text style={styles.demoButtonSubtitle}>
+                  Ephemeral Subdomains + Stealth Addresses
+                </Text>
+              </View>
+              <Icon name="arrow-forward" size={20} color="#FFFFFF" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle="light-content" backgroundColor={ModernColors.primaryGradient[0]} />
@@ -778,6 +928,23 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
         <TouchableOpacity
           style={[
             styles.tabButton, 
+            activeTab === 'ens' && [styles.activeTab, { borderBottomColor: ModernColors.privacy.enhanced }]
+          ]}
+          onPress={() => setActiveTab('ens')}
+        >
+          <Text
+            style={[
+              styles.tabButtonText,
+              activeTab === 'ens' && [styles.activeTabText, { color: ModernColors.privacy.enhanced }],
+              { color: colors.textSecondary }
+            ]}
+          >
+            ENS Stealth
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.tabButton, 
             activeTab === 'settings' && [styles.activeTab, { borderBottomColor: ModernColors.privacy.enhanced }]
           ]}
           onPress={() => setActiveTab('settings')}
@@ -797,6 +964,7 @@ const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation, route, onNavi
       {/* Tab Content */}
       {activeTab === 'balance' && renderBalanceTab()}
       {activeTab === 'transactions' && renderTransactionsTab()}
+      {activeTab === 'ens' && renderENSTab()}
       {activeTab === 'settings' && renderSettingsTab()}
     </SafeAreaView>
   );
@@ -1212,6 +1380,67 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginLeft: ModernSpacing.sm,
+  },
+  
+  // Wallet Status
+  walletStatus: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 8,
+  },
+  walletStatusText: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  debugButton: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 6,
+  },
+  debugButtonText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#FFF',
+    textAlign: 'center',
+  },
+  
+  // ENS Privacy Demo Button Styles
+  demoButtonContainer: {
+    marginTop: ModernSpacing.xl,
+    marginHorizontal: ModernSpacing.md,
+  },
+  demoButton: {
+    borderRadius: ModernBorderRadius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
+    ...ModernShadows.medium,
+  },
+  demoButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: ModernSpacing.lg,
+    paddingHorizontal: ModernSpacing.lg,
+  },
+  demoButtonIcon: {
+    marginRight: ModernSpacing.md,
+  },
+  demoButtonTextContainer: {
+    flex: 1,
+  },
+  demoButtonTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  demoButtonSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
   },
 });
 

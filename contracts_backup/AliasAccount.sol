@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -44,32 +44,32 @@ contract AliasAccount is ReentrancyGuard, Ownable {
     // Events
     event AliasCreated(
         address indexed user,
-        address indexed alias, 
+        address indexed aliasAddress, 
         bytes32 indexed commitment,
         address shieldedPool
     );
     
     event DepositToShielded(
-        address indexed alias,
+        address indexed aliasAddress,
         address indexed user,
         uint256 amount,
         bytes32 commitment
     );
     
     event WithdrawFromShielded(
-        address indexed alias,
+        address indexed aliasAddress,
         address indexed recipient,
         uint256 amount,
         bytes32 nullifier
     );
     
     event PoolLinked(
-        address indexed alias,
+        address indexed aliasAddress,
         address indexed oldPool,
         address indexed newPool
     );
 
-    event AliasStatusChanged(address indexed alias, bool isActive);
+    event AliasStatusChanged(address indexed aliasAddress, bool isActive);
     
     // Errors
     error AliasAlreadyExists();
@@ -145,20 +145,14 @@ contract AliasAccount is ReentrancyGuard, Ownable {
         emit AliasCreated(msg.sender, aliasAddress, commitment, shieldedPool);
     }
 
-    /**
-     * @dev Link an existing alias to a different shielded pool
-     * @param aliasAddress The alias to update
-     * @param newShieldedPool New shielded pool address
-     * @param newCommitment New commitment in the new pool
-     */
     function linkToShieldedPool(
         address aliasAddress,
         address newShieldedPool,
         bytes32 newCommitment
     ) external nonReentrant {
-        Alias storage alias = aliases[aliasAddress];
+        Alias storage aliasData = aliases[aliasAddress];
         if (!isValidAlias[aliasAddress]) revert AliasNotFound();
-        if (!alias.isActive) revert AliasInactive();
+        if (!aliasData.isActive) revert AliasInactive();
         if (!authorizedPools[newShieldedPool]) revert UnauthorizedPool();
         if (newCommitment == bytes32(0)) revert InvalidCommitment();
 
@@ -168,11 +162,11 @@ contract AliasAccount is ReentrancyGuard, Ownable {
             "Commitment not found in new pool"
         );
 
-        address oldPool = alias.shieldedPool;
+        address oldPool = aliasData.shieldedPool;
         
         // Update alias
-        alias.shieldedPool = newShieldedPool;
-        alias.commitment = newCommitment;
+        aliasData.shieldedPool = newShieldedPool;
+        aliasData.commitment = newCommitment;
         
         // Update commitment mapping
         commitmentToAlias[newCommitment] = aliasAddress;
@@ -189,17 +183,17 @@ contract AliasAccount is ReentrancyGuard, Ownable {
         address aliasAddress, 
         bytes32 newCommitment
     ) external payable nonReentrant {
-        Alias storage alias = aliases[aliasAddress];
+        Alias storage aliasData = aliases[aliasAddress];
         if (!isValidAlias[aliasAddress]) revert AliasNotFound();
-        if (!alias.isActive) revert AliasInactive();
+        if (!aliasData.isActive) revert AliasInactive();
         if (msg.value == 0) revert InvalidAmount();
 
         // Deposit to linked shielded pool
-        MinimalShieldedPool shieldedPool = MinimalShieldedPool(alias.shieldedPool);
+        MinimalShieldedPool shieldedPool = MinimalShieldedPool(aliasData.shieldedPool);
         shieldedPool.deposit{value: msg.value}(newCommitment);
 
         // Update alias statistics
-        alias.totalDeposits += msg.value;
+        aliasData.totalDeposits += msg.value;
 
         emit DepositToShielded(aliasAddress, msg.sender, msg.value, newCommitment);
     }
@@ -223,16 +217,16 @@ contract AliasAccount is ReentrancyGuard, Ownable {
         uint256 amount,
         uint256 fee
     ) external nonReentrant {
-        Alias storage alias = aliases[aliasAddress];
+        Alias storage aliasData = aliases[aliasAddress];
         if (!isValidAlias[aliasAddress]) revert AliasNotFound();
-        if (!alias.isActive) revert AliasInactive();
+        if (!aliasData.isActive) revert AliasInactive();
 
         // Execute withdrawal through shielded pool
-        MinimalShieldedPool shieldedPool = MinimalShieldedPool(alias.shieldedPool);
+        MinimalShieldedPool shieldedPool = MinimalShieldedPool(aliasData.shieldedPool);
         shieldedPool.withdraw(proof, merkleRoot, nullifier, recipient, fee);
 
         // Update alias statistics
-        alias.totalWithdrawals += amount;
+        aliasData.totalWithdrawals += amount;
 
         emit WithdrawFromShielded(aliasAddress, recipient, amount, nullifier);
     }
@@ -273,16 +267,16 @@ contract AliasAccount is ReentrancyGuard, Ownable {
         bytes32 commitment,
         uint256 amount
     ) internal {
-        Alias storage alias = aliases[aliasAddress];
+        Alias storage aliasData = aliases[aliasAddress];
         if (!isValidAlias[aliasAddress]) revert AliasNotFound();
-        if (!alias.isActive) revert AliasInactive();
+        if (!aliasData.isActive) revert AliasInactive();
 
         // Deposit to linked shielded pool
-        MinimalShieldedPool shieldedPool = MinimalShieldedPool(alias.shieldedPool);
+        MinimalShieldedPool shieldedPool = MinimalShieldedPool(aliasData.shieldedPool);
         shieldedPool.deposit{value: amount}(commitment);
 
         // Update alias statistics
-        alias.totalDeposits += amount;
+        aliasData.totalDeposits += amount;
 
         emit DepositToShielded(aliasAddress, msg.sender, amount, commitment);
     }
@@ -320,11 +314,11 @@ contract AliasAccount is ReentrancyGuard, Ownable {
         uint256 netBalance,
         bool isActive
     ) {
-        Alias memory alias = aliases[aliasAddress];
-        totalDeposits = alias.totalDeposits;
-        totalWithdrawals = alias.totalWithdrawals;
+        Alias memory aliasData = aliases[aliasAddress];
+        totalDeposits = aliasData.totalDeposits;
+        totalWithdrawals = aliasData.totalWithdrawals;
         netBalance = totalDeposits > totalWithdrawals ? totalDeposits - totalWithdrawals : 0;
-        isActive = alias.isActive;
+        isActive = aliasData.isActive;
     }
 
     /**
